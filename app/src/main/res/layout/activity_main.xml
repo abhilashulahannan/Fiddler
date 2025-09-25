@@ -6,27 +6,55 @@
     android:layout_height="match_parent"
     android:background="@drawable/sketchy_background">
 
-    <!-- Activity Section -->
+    <!-- Activity Section (Dynamic Fragment Container) -->
     <FrameLayout
         android:id="@+id/activity_container"
         android:layout_width="0dp"
         android:layout_height="match_parent"
         app:layout_constraintStart_toStartOf="parent"
-        app:layout_constraintEnd_toStartOf="@+id/sidebar_container"
+        app:layout_constraintEnd_toStartOf="@+id/sidebar_scroll"
         app:layout_constraintTop_toTopOf="parent"
         app:layout_constraintBottom_toBottomOf="parent" />
 
-    <!-- Sidebar -->
-    <LinearLayout
-        android:id="@+id/sidebar_container"
+    <!-- Sidebar ScrollView -->
+    <ScrollView
+        android:id="@+id/sidebar_scroll"
         android:layout_width="80dp"
         android:layout_height="match_parent"
-        android:orientation="vertical"
-        android:background="@drawable/sketchy_sidebar"
-        android:padding="8dp"
         android:scrollbars="vertical"
         app:layout_constraintEnd_toEndOf="parent"
         app:layout_constraintTop_toTopOf="parent"
-        app:layout_constraintBottom_toBottomOf="parent" />
+        app:layout_constraintBottom_toBottomOf="parent">
+
+        <!-- Sidebar Content -->
+        <LinearLayout
+            android:id="@+id/sidebar_container"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:orientation="vertical"
+            android:background="@drawable/sketchy_sidebar"
+            android:padding="8dp">
+
+            <!-- Example Sidebar Buttons -->
+            <ImageButton
+                android:id="@+id/btn_feature1"
+                android:layout_width="match_parent"
+                android:layout_height="60dp"
+                android:background="@drawable/sketchy_button"
+                android:contentDescription="Feature 1"
+                android:src="@drawable/ic_feature1" />
+
+            <ImageButton
+                android:id="@+id/btn_feature2"
+                android:layout_width="match_parent"
+                android:layout_height="60dp"
+                android:background="@drawable/sketchy_button"
+                android:contentDescription="Feature 2"
+                android:src="@drawable/ic_feature2" />
+
+            <!-- Add more buttons as needed -->
+
+        </LinearLayout>
+    </ScrollView>
 
 </androidx.constraintlayout.widget.ConstraintLayout>

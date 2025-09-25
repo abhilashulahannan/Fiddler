@@ -1,10 +1,12 @@
 package com.yourdomain.yourapp
 
+import android.animation.ValueAnimator
 import android.content.Intent
 import android.os.Bundle
 import android.view.GestureDetector
 import android.view.MotionEvent
 import android.view.ViewGroup
+import android.widget.FrameLayout
 import android.widget.ImageView
 import android.widget.LinearLayout
 import androidx.appcompat.app.AppCompatActivity
@@ -16,21 +18,27 @@ import com.yourdomain.yourapp.subapps.app3.App3Activity
 class MainActivity : AppCompatActivity() {
 
     private lateinit var sidebar: LinearLayout
+    private lateinit var activityContainer: FrameLayout
     private var isExpanded = false
-    private val collapsedWidth = 80    // dp
-    private val expandedWidth = 240    // dp
+    private val collapsedWidthDp = 80
+    private val expandedWidthDp = 240
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         setContentView(R.layout.activity_main)
 
         sidebar = findViewById(R.id.sidebar_container)
+        activityContainer = findViewById(R.id.activity_container)
 
         setupSidebarIcons()
+        setupGestureDetection()
+    }
 
+    private fun setupGestureDetection() {
         val gestureDetector = GestureDetector(this, object : GestureDetector.SimpleOnGestureListener() {
             override fun onFling(e1: MotionEvent?, e2: MotionEvent?, velocityX: Float, velocityY: Float): Boolean {
-                if (e1 != null && e2 != null && e1.x - e2.x > 100) {
+                val density = resources.displayMetrics.density
+                if (e1 != null && e2 != null && e1.x - e2.x > 100 * density) {
                     toggleSidebar()
                     return true
                 }
@@ -38,16 +46,24 @@ class MainActivity : AppCompatActivity() {
             }
         })
 
-        findViewById<ViewGroup>(R.id.activity_container).setOnTouchListener { _, event ->
+        activityContainer.setOnTouchListener { _, event ->
             gestureDetector.onTouchEvent(event)
-            true
+            false
         }
     }
 
     private fun toggleSidebar() {
-        val newWidth = if (isExpanded) collapsedWidth else expandedWidth
-        sidebar.updateLayoutParams {
-            width = (newWidth * resources.displayMetrics.density).toInt()
+        val startWidth = sidebar.width
+        val targetWidth = if (isExpanded) (collapsedWidthDp * resources.displayMetrics.density).toInt()
+        else (expandedWidthDp * resources.displayMetrics.density).toInt()
+
+        ValueAnimator.ofInt(startWidth, targetWidth).apply {
+            duration = 300
+            addUpdateListener { valueAnimator ->
+                sidebar.layoutParams.width = valueAnimator.animatedValue as Int
+                sidebar.requestLayout()
+            }
+            start()
         }
         isExpanded = !isExpanded
     }
@@ -60,15 +76,34 @@ class MainActivity : AppCompatActivity() {
         )
 
         apps.forEach { (label, iconRes, activityClass) ->
-            val icon = ImageView(this).apply {
-                setImageResource(iconRes)
-                contentDescription = label
-                setPadding(16, 16, 16, 16)
+            val iconContainer = LinearLayout(this).apply {
+                orientation = LinearLayout.VERTICAL
+                setPadding(8, 8, 8, 8)
+                background = getDrawable(R.drawable.sketchy_button)
+                layoutParams = LinearLayout.LayoutParams(
+                    LinearLayout.LayoutParams.MATCH_PARENT,
+                    LinearLayout.LayoutParams.WRAP_CONTENT
+                ).apply {
+                    setMargins(8, 8, 8, 8)
+                }
                 setOnClickListener {
                     startActivity(Intent(this@MainActivity, activityClass))
                 }
             }
-            sidebar.addView(icon)
+
+            val icon = ImageView(this).apply {
+                setImageResource(iconRes)
+                contentDescription = label
+                adjustViewBounds = true
+                scaleType = ImageView.ScaleType.FIT_CENTER
+                layoutParams = LinearLayout.LayoutParams(
+                    LinearLayout.LayoutParams.MATCH_PARENT,
+                    80
+                )
+            }
+
+            iconContainer.addView(icon)
+            sidebar.addView(iconContainer)
         }
     }
 }
