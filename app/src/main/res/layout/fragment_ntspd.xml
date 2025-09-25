@@ -1,23 +1,158 @@
-<LinearLayout
-    xmlns:android="http://schemas.android.com/apk/res/android"
-    android:orientation="vertical"
+<?xml version="1.0" encoding="utf-8"?>
+<ScrollView xmlns:android="http://schemas.android.com/apk/res/android"
     android:layout_width="match_parent"
-    android:layout_height="match_parent"
-    android:background="@drawable/sketchy_fragment_bg"
-    android:padding="16dp">
+    android:layout_height="match_parent">
 
-    <!-- Net Speed Display -->
-    <TextView
-        android:id="@+id/tv_net_speed"
-        android:layout_width="wrap_content"
-        android:layout_height="wrap_content"
-        android:text="Net Speed: 0 KB/s"
-        android:textSize="20sp"
-        android:textColor="#000"
-        android:padding="8dp"
-        android:background="@drawable/sketchy_label"
-        android:layout_gravity="center_horizontal" />
+    <LinearLayout
+        android:orientation="vertical"
+        android:padding="16dp"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content">
 
-    <!-- Optional: Add graph, icons, or stats here -->
+        <!-- Title -->
+        <TextView
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:fontFamily="@font/font_body"
+            android:textColor="@color/black"
+            android:text="Internet"
+            android:textSize="54sp"
+            android:paddingBottom="8dp" />
 
-</LinearLayout>
+        <TextView
+            android:id="@+id/tv_about"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:fontFamily="@font/font_handwriting"
+            android:textColor="@color/black"
+            android:text="Configurable elements like Traffic info in status bar."
+            android:textSize="20sp" />
+
+        <Space
+            android:layout_width="match_parent"
+            android:layout_height="32dp" />
+
+        <!-- Section header -->
+        <TextView
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:fontFamily="@font/font_body"
+            android:textColor="@color/black"
+            android:text="Network Traffic Info"
+            android:textSize="28sp"
+            android:paddingBottom="8dp" />
+
+        <TextView
+            android:id="@+id/tv_netstatnfo"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:fontFamily="@font/font_handwriting"
+            android:textColor="@color/black"
+            android:textSize="20sp"
+            android:text="Add configurable traffic info onto your status bar." />
+
+
+        <!-- Enable switch -->
+        <CheckBox
+            android:id="@+id/switch_enable"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:fontFamily="@font/font_handwriting"
+            android:textColor="@color/black"
+            android:textSize="20sp"
+            android:buttonTint="@color/black"
+            android:text="Enable Network Speed Indicator" />
+
+        <!-- Placement options -->
+        <TextView
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:text="Placement in status bar:"
+            android:fontFamily="@font/font_body"
+            android:textColor="@color/black"
+            android:textSize="22sp"
+            android:layout_marginTop="5dp" />
+
+        <RadioGroup
+            android:id="@+id/radio_group_placement"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:orientation="horizontal">
+
+            <RadioButton
+                android:id="@+id/radio_left"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:fontFamily="@font/font_handwriting"
+                android:textColor="@color/black"
+                android:textSize="20sp"
+                android:buttonTint="@color/black"
+                android:text="Left" />
+
+            <RadioButton
+                android:id="@+id/radio_center"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:fontFamily="@font/font_handwriting"
+                android:textColor="@color/black"
+                android:textSize="20sp"
+                android:buttonTint="@color/black"
+                android:text="Center" />
+
+            <RadioButton
+                android:id="@+id/radio_right"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:checked="true"
+                android:fontFamily="@font/font_handwriting"
+                android:textColor="@color/black"
+                android:textSize="20sp"
+                android:buttonTint="@color/black"
+                android:text="Right" />
+        </RadioGroup>
+
+        <!-- Offset -->
+        <TextView
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:text="Offset from notch/camera hole:"
+            android:fontFamily="@font/font_body"
+            android:textColor="@color/black"
+            android:textSize="22sp"
+            android:layout_marginTop="16dp" />
+
+        <SeekBar
+            android:id="@+id/seekbar_offset"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:foregroundTint="@color/black"
+            android:max="100" />
+
+        <TextView
+            android:id="@+id/txt_offset_value"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:fontFamily="@font/font_handwriting"
+            android:textColor="@color/black"
+            android:textSize="18sp"
+            android:text="0 dp"
+            android:layout_marginTop="4dp" />
+
+        <!-- Apply button -->
+        <Button
+            android:id="@+id/btn_apply"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:fontFamily="@font/font_handwriting"
+            android:textColor="@color/white"
+            android:textSize="20sp"
+            android:backgroundTint="@color/black"
+            android:text="Apply Settings"
+            android:layout_marginTop="24dp" />
+
+        <Space
+            android:layout_width="match_parent"
+            android:layout_height="32dp" />
+
+    </LinearLayout>
+</ScrollView>

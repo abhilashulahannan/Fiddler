@@ -11,8 +11,8 @@
 
     <!-- Theme overlay for fullscreen containers -->
     <style name="ThemeOverlay.Fiddler.FullscreenContainer" parent="">
-        <item name="fullscreenBackgroundColor">@color/light_blue_600</item>
-        <item name="fullscreenTextColor">@color/light_blue_A200</item>
+        <item name="fullscreenBackgroundColor">@color/black</item>
+        <item name="fullscreenTextColor">@color/black</item>
     </style>
 
 </resources>

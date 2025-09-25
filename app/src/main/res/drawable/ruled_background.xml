@@ -1,4 +1,20 @@
-<bitmap xmlns:android="http://schemas.android.com/apk/res/android"
-    android:src="@drawable/ruled_line"
-    android:tileMode="repeat"
-    android:gravity="top" />
+<layer-list xmlns:android="http://schemas.android.com/apk/res/android">
+
+    <!-- Bottom colored layer -->
+    <item>
+        <color android:color="#FFF9C4"/> <!-- light yellow, change as needed -->
+    </item>
+
+    <!-- Top PNG layer (ruled lines) -->
+    <item>
+        <bitmap xmlns:android="http://schemas.android.com/apk/res/android"
+            android:src="@drawable/ruled_line"
+            android:tileMode="repeat"
+            android:gravity="top" />
+    </item>
+
+</layer-list>
+
+
+
+

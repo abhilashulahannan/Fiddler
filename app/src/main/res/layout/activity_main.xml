@@ -1,3 +1,4 @@
+<?xml version="1.0" encoding="utf-8"?>
 <androidx.constraintlayout.widget.ConstraintLayout
     xmlns:android="http://schemas.android.com/apk/res/android"
     xmlns:app="http://schemas.android.com/apk/res-auto"
@@ -5,13 +6,12 @@
     android:layout_width="match_parent"
     android:layout_height="match_parent">
 
-    <!-- Scrollable Main Content with ruled lines -->
+    <!-- Scrollable Main Content with notebook lines -->
     <ScrollView
         android:id="@+id/main_scrollview"
         android:layout_width="0dp"
         android:layout_height="match_parent"
         android:fillViewport="true"
-        android:background="@drawable/ruled_background"
         app:layout_constraintStart_toStartOf="parent"
         app:layout_constraintEnd_toStartOf="@+id/sidebar_scroll"
         app:layout_constraintTop_toTopOf="parent"
@@ -22,14 +22,15 @@
             android:orientation="vertical"
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
-            android:padding="16dp" />
+            android:padding="16dp"
+            android:background="@drawable/ruled_background"/>
 
     </ScrollView>
 
-    <!-- Sidebar -->
+    <!-- Sidebar ScrollView -->
     <ScrollView
         android:id="@+id/sidebar_scroll"
-        android:layout_width="80dp"
+        android:layout_width="60dp"
         android:layout_height="match_parent"
         android:scrollbars="vertical"
         app:layout_constraintEnd_toEndOf="parent"
@@ -42,7 +43,9 @@
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
             android:background="@drawable/sketchy_sidebar"
-            android:padding="8dp" />
+            android:padding="8dp"
+            android:gravity="top"
+            android:clipToPadding="false"/>
     </ScrollView>
 
 </androidx.constraintlayout.widget.ConstraintLayout>

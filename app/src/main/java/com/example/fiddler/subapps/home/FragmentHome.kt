@@ -8,7 +8,7 @@ import android.widget.CheckBox
 import androidx.fragment.app.Fragment
 import com.example.fiddler.R
 import com.example.fiddler.subapps.ntspd.FragmentNtspd
-import com.example.fiddler.subapps.rngtns.FragmentRngtns
+import com.example.fiddler.subapps.rngtns.RngtnsFragment
 
 class FragmentHome : Fragment() {
 

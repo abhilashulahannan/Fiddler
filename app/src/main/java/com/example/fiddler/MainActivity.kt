@@ -7,7 +7,7 @@ import android.widget.ScrollView
 import androidx.appcompat.app.AppCompatActivity
 import com.example.fiddler.subapps.home.FragmentHome
 import com.example.fiddler.subapps.ntspd.FragmentNtspd
-import com.example.fiddler.subapps.rngtns.FragmentRngtns
+import com.example.fiddler.subapps.rngtns.RngtnsFragment
 
 class MainActivity : AppCompatActivity() {
 
@@ -43,7 +43,7 @@ class MainActivity : AppCompatActivity() {
             val icon = androidx.appcompat.widget.AppCompatImageView(this).apply {
                 setImageResource(iconRes)
                 contentDescription = label
-                setPadding(16, 16, 16, 16)
+                setPadding(8, 8, 8, 8)
                 setOnClickListener {
                     // Scroll to the corresponding section
                     val targetView = mainContent.getChildAt(index)

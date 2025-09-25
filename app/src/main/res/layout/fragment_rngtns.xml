@@ -1,0 +1,27 @@
+<?xml version="1.0" encoding="utf-8"?>
+<LinearLayout
+    xmlns:android="http://schemas.android.com/apk/res/android"
+    android:id="@+id/rngtns_root"
+    android:layout_width="match_parent"
+    android:layout_height="match_parent"
+    android:orientation="vertical"
+    android:padding="16dp">
+
+    <!-- Heading -->
+    <TextView
+        android:id="@+id/tv_rngtns_heading"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:text="Ringtones"
+        android:textAppearance="?attr/textAppearanceHeadlineSmall"
+        android:fontFamily="@font/font_head"
+        android:paddingBottom="16dp"/>
+
+    <!-- Placeholder body text -->
+    <TextView
+        android:id="@+id/tv_rngtns_body"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:text="This is the Ringtones fragment placeholder."
+        android:fontFamily="@font/font_handwriting"/>
+</LinearLayout>
