@@ -1,109 +1,56 @@
-package com.yourdomain.yourapp
+package com.example.fiddler
 
-import android.animation.ValueAnimator
-import android.content.Intent
 import android.os.Bundle
-import android.view.GestureDetector
-import android.view.MotionEvent
-import android.view.ViewGroup
-import android.widget.FrameLayout
-import android.widget.ImageView
+import android.view.LayoutInflater
 import android.widget.LinearLayout
+import android.widget.ScrollView
 import androidx.appcompat.app.AppCompatActivity
-import androidx.core.view.updateLayoutParams
-import com.yourdomain.yourapp.subapps.app1.App1Activity
-import com.yourdomain.yourapp.subapps.app2.App2Activity
-import com.yourdomain.yourapp.subapps.app3.App3Activity
+import com.example.fiddler.subapps.home.FragmentHome
+import com.example.fiddler.subapps.ntspd.FragmentNtspd
+import com.example.fiddler.subapps.rngtns.FragmentRngtns
 
 class MainActivity : AppCompatActivity() {
 
+    private lateinit var mainContent: LinearLayout
+    private lateinit var mainScrollView: ScrollView
     private lateinit var sidebar: LinearLayout
-    private lateinit var activityContainer: FrameLayout
-    private var isExpanded = false
-    private val collapsedWidthDp = 80
-    private val expandedWidthDp = 240
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         setContentView(R.layout.activity_main)
 
+        mainContent = findViewById(R.id.main_content)
+        mainScrollView = findViewById(R.id.main_scrollview)
         sidebar = findViewById(R.id.sidebar_container)
-        activityContainer = findViewById(R.id.activity_container)
 
-        setupSidebarIcons()
-        setupGestureDetection()
+        // Inflate Home and sub-app fragments as sections
+        val inflater = LayoutInflater.from(this)
+        mainContent.addView(inflater.inflate(R.layout.fragment_home, mainContent, false))
+        mainContent.addView(inflater.inflate(R.layout.fragment_ntspd, mainContent, false))
+        mainContent.addView(inflater.inflate(R.layout.fragment_rngtns, mainContent, false))
+
+        setupSidebar()
     }
 
-    private fun setupGestureDetection() {
-        val gestureDetector = GestureDetector(this, object : GestureDetector.SimpleOnGestureListener() {
-            override fun onFling(e1: MotionEvent?, e2: MotionEvent?, velocityX: Float, velocityY: Float): Boolean {
-                val density = resources.displayMetrics.density
-                if (e1 != null && e2 != null && e1.x - e2.x > 100 * density) {
-                    toggleSidebar()
-                    return true
-                }
-                return false
-            }
-        })
-
-        activityContainer.setOnTouchListener { _, event ->
-            gestureDetector.onTouchEvent(event)
-            false
-        }
-    }
-
-    private fun toggleSidebar() {
-        val startWidth = sidebar.width
-        val targetWidth = if (isExpanded) (collapsedWidthDp * resources.displayMetrics.density).toInt()
-        else (expandedWidthDp * resources.displayMetrics.density).toInt()
-
-        ValueAnimator.ofInt(startWidth, targetWidth).apply {
-            duration = 300
-            addUpdateListener { valueAnimator ->
-                sidebar.layoutParams.width = valueAnimator.animatedValue as Int
-                sidebar.requestLayout()
-            }
-            start()
-        }
-        isExpanded = !isExpanded
-    }
-
-    private fun setupSidebarIcons() {
+    private fun setupSidebar() {
         val apps = listOf(
-            Triple("App 1", R.drawable.ic_app1, App1Activity::class.java),
-            Triple("App 2", R.drawable.ic_app2, App2Activity::class.java),
-            Triple("App 3", R.drawable.ic_app3, App3Activity::class.java)
+            Triple("Home", R.drawable.doodlehome, 0),
+            Triple("Net Speed", R.drawable.doodlenet, 1),
+            Triple("Ringtones", R.drawable.doodlemusic, 2)
         )
 
-        apps.forEach { (label, iconRes, activityClass) ->
-            val iconContainer = LinearLayout(this).apply {
-                orientation = LinearLayout.VERTICAL
-                setPadding(8, 8, 8, 8)
-                background = getDrawable(R.drawable.sketchy_button)
-                layoutParams = LinearLayout.LayoutParams(
-                    LinearLayout.LayoutParams.MATCH_PARENT,
-                    LinearLayout.LayoutParams.WRAP_CONTENT
-                ).apply {
-                    setMargins(8, 8, 8, 8)
-                }
-                setOnClickListener {
-                    startActivity(Intent(this@MainActivity, activityClass))
-                }
-            }
-
-            val icon = ImageView(this).apply {
+        apps.forEach { (label, iconRes, index) ->
+            val icon = androidx.appcompat.widget.AppCompatImageView(this).apply {
                 setImageResource(iconRes)
                 contentDescription = label
-                adjustViewBounds = true
-                scaleType = ImageView.ScaleType.FIT_CENTER
-                layoutParams = LinearLayout.LayoutParams(
-                    LinearLayout.LayoutParams.MATCH_PARENT,
-                    80
-                )
+                setPadding(16, 16, 16, 16)
+                setOnClickListener {
+                    // Scroll to the corresponding section
+                    val targetView = mainContent.getChildAt(index)
+                    mainScrollView.smoothScrollTo(0, targetView.top)
+                }
             }
-
-            iconContainer.addView(icon)
-            sidebar.addView(iconContainer)
+            sidebar.addView(icon)
         }
     }
 }

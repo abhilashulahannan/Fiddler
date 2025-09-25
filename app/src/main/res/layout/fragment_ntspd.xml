@@ -1,0 +1,23 @@
+<LinearLayout
+    xmlns:android="http://schemas.android.com/apk/res/android"
+    android:orientation="vertical"
+    android:layout_width="match_parent"
+    android:layout_height="match_parent"
+    android:background="@drawable/sketchy_fragment_bg"
+    android:padding="16dp">
+
+    <!-- Net Speed Display -->
+    <TextView
+        android:id="@+id/tv_net_speed"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:text="Net Speed: 0 KB/s"
+        android:textSize="20sp"
+        android:textColor="#000"
+        android:padding="8dp"
+        android:background="@drawable/sketchy_label"
+        android:layout_gravity="center_horizontal" />
+
+    <!-- Optional: Add graph, icons, or stats here -->
+
+</LinearLayout>

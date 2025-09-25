@@ -1,0 +1,49 @@
+<LinearLayout
+    xmlns:android="http://schemas.android.com/apk/res/android"
+    android:orientation="vertical"
+    android:layout_width="match_parent"
+    android:layout_height="wrap_content"
+    android:padding="16dp"
+    android:background="@drawable/sketchy_fragment_bg">
+
+    <!-- App Name -->
+    <TextView
+        android:id="@+id/tv_app_name"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:text="Fiddler"
+        android:textSize="72dp"
+        android:textColor="#000"
+        android:layout_gravity="center_horizontal"
+        android:paddingBottom="0dp"/>
+
+    <!-- About Section -->
+    <TextView
+        android:id="@+id/tv_about"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:text="Fiddler is a super app for customizing your phone and adding unique features."
+        android:textSize="16sp"
+        android:paddingBottom="16dp" />
+
+    <!-- Sub-app list -->
+    <TextView
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:text="Enabled Sub-apps:"
+        android:textSize="18sp"
+        android:paddingBottom="8dp" />
+
+    <CheckBox
+        android:id="@+id/cb_ntspd"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:text="Net Speed Indicator" />
+
+    <CheckBox
+        android:id="@+id/cb_rngtns"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:text="Ringtones" />
+
+</LinearLayout>

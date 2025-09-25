@@ -1,0 +1,17 @@
+<resources>
+
+    <style name="Widget.Theme.Fiddler.ButtonBar.Fullscreen" parent="">
+        <item name="android:background">@color/black_overlay</item>
+        <item name="android:buttonBarStyle">?android:attr/buttonBarStyle</item>
+    </style>
+
+    <!-- Headings -->
+    <style name="TextHead" parent="TextAppearance.Material3.HeadlineSmall">
+        <item name="android:fontFamily">@font/font_head</item>
+    </style>
+
+    <!-- Titles/Subtitles -->
+    <style name="TextTitle" parent="TextAppearance.Material3.TitleMedium">
+        <item name="android:fontFamily">@font/font_body</item>
+    </style>
+</resources>
