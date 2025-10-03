@@ -1,0 +1,25 @@
+<layer-list xmlns:android="http://schemas.android.com/apk/res/android">
+
+    <!-- Bottom shape with background color, stroke, and rounded corners -->
+    <item>
+        <shape android:shape="rectangle">
+            <solid android:color="#1D000000"/>
+            <stroke android:width="2dp" android:color="@color/black"/>
+            <corners android:radius="30dp"/>
+        </shape>
+    </item>
+
+    <!-- Top bitmap clipped to rounded corners -->
+    <item>
+        <clip>
+            <shape android:shape="rectangle">
+                <corners android:radius="30dp"/>
+                <bitmap
+                    android:src="@drawable/sketchy_sidebar"
+                    android:gravity="fill_horizontal|top"
+                    android:tileMode="repeat"/>
+            </shape>
+        </clip>
+    </item>
+
+</layer-list>

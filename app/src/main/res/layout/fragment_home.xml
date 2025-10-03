@@ -5,6 +5,10 @@
     android:layout_height="wrap_content"
     android:padding="16dp">
 
+    <Space
+        android:layout_width="match_parent"
+        android:layout_height="60dp" />
+
     <!-- App Name -->
     <TextView
         android:id="@+id/tv_app_name"
@@ -59,6 +63,26 @@
         android:textColor="@color/black"
         android:buttonTint="@color/black"
         android:text="Ringtones" />
+
+    <CheckBox
+        android:id="@+id/cb_fidlnd"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:fontFamily="@font/font_handwriting"
+        android:textSize="20sp"
+        android:textColor="@color/black"
+        android:buttonTint="@color/black"
+        android:text="Fidland" />
+
+    <CheckBox
+        android:id="@+id/cb_secgrp"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:fontFamily="@font/font_handwriting"
+        android:textSize="20sp"
+        android:textColor="@color/black"
+        android:buttonTint="@color/black"
+        android:text="Secure Groups" />
     <Space
         android:layout_width="match_parent"
         android:layout_height="64dp" />

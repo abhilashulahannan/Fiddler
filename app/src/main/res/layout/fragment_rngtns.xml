@@ -7,21 +7,50 @@
     android:orientation="vertical"
     android:padding="16dp">
 
-    <!-- Heading -->
-    <TextView
-        android:id="@+id/tv_rngtns_heading"
-        android:layout_width="wrap_content"
-        android:layout_height="wrap_content"
-        android:text="Ringtones"
-        android:textAppearance="?attr/textAppearanceHeadlineSmall"
-        android:fontFamily="@font/font_head"
-        android:paddingBottom="16dp"/>
+    <Space
+        android:layout_width="match_parent"
+        android:layout_height="60dp" />
 
-    <!-- Placeholder body text -->
+    <!-- Title -->
     <TextView
-        android:id="@+id/tv_rngtns_body"
         android:layout_width="wrap_content"
         android:layout_height="wrap_content"
-        android:text="This is the Ringtones fragment placeholder."
-        android:fontFamily="@font/font_handwriting"/>
+        android:fontFamily="@font/font_body"
+        android:textColor="@color/black"
+        android:text="Audio"
+        android:textSize="54sp"
+        android:paddingBottom="8dp" />
+
+    <TextView
+        android:id="@+id/tv_about"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:fontFamily="@font/font_handwriting"
+        android:textColor="@color/black"
+        android:text="Configurable elements like rotating ringtones, etc."
+        android:textSize="20sp" />
+
+    <Space
+        android:layout_width="match_parent"
+        android:layout_height="32dp" />
+
+    <!-- Section header -->
+    <TextView
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:fontFamily="@font/font_body"
+        android:textColor="@color/black"
+        android:text="Rotating Ringtones"
+        android:textSize="28sp"
+        android:paddingBottom="8dp" />
+
+    <TextView
+        android:id="@+id/tv_netstatnfo"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:fontFamily="@font/font_handwriting"
+        android:textColor="@color/black"
+        android:textSize="20sp"
+        android:text="Set multiple audio files as ringtones which switches after  every ring." />
+
 </LinearLayout>

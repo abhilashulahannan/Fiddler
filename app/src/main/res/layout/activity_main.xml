@@ -4,48 +4,33 @@
     xmlns:app="http://schemas.android.com/apk/res-auto"
     android:id="@+id/main_root"
     android:layout_width="match_parent"
-    android:layout_height="match_parent">
+    android:layout_height="match_parent"
+    android:background="@color/white">
 
-    <!-- Scrollable Main Content with notebook lines -->
-    <ScrollView
-        android:id="@+id/main_scrollview"
+    <!-- Sidebar: 80% of screen height, vertically centered -->
+    <LinearLayout
+        android:id="@+id/sidebar_container"
+        android:layout_width="60dp"
+        android:layout_height="0dp"
+        android:orientation="vertical"
+        android:gravity="center"
+        android:paddingTop="16dp"
+        android:paddingBottom="16dp"
+        android:background="@drawable/sidebar_background"
+        app:layout_constraintStart_toStartOf="parent"
+        app:layout_constraintTop_toTopOf="parent"
+        app:layout_constraintBottom_toBottomOf="parent"
+        app:layout_constraintHeight_percent="0.8" />
+
+    <!-- Fragment container / ViewPager2 -->
+    <androidx.viewpager2.widget.ViewPager2
+        android:id="@+id/mainPager"
         android:layout_width="0dp"
         android:layout_height="match_parent"
-        android:fillViewport="true"
-        app:layout_constraintStart_toStartOf="parent"
-        app:layout_constraintEnd_toStartOf="@+id/sidebar_scroll"
-        app:layout_constraintTop_toTopOf="parent"
-        app:layout_constraintBottom_toBottomOf="parent">
-
-        <LinearLayout
-            android:id="@+id/main_content"
-            android:orientation="vertical"
-            android:layout_width="match_parent"
-            android:layout_height="wrap_content"
-            android:padding="16dp"
-            android:background="@drawable/ruled_background"/>
-
-    </ScrollView>
-
-    <!-- Sidebar ScrollView -->
-    <ScrollView
-        android:id="@+id/sidebar_scroll"
-        android:layout_width="60dp"
-        android:layout_height="match_parent"
-        android:scrollbars="vertical"
+        android:orientation="vertical"
+        android:background="@color/white"
+        app:layout_constraintStart_toEndOf="@id/sidebar_container"
         app:layout_constraintEnd_toEndOf="parent"
         app:layout_constraintTop_toTopOf="parent"
-        app:layout_constraintBottom_toBottomOf="parent">
-
-        <LinearLayout
-            android:id="@+id/sidebar_container"
-            android:orientation="vertical"
-            android:layout_width="match_parent"
-            android:layout_height="wrap_content"
-            android:background="@drawable/sketchy_sidebar"
-            android:padding="8dp"
-            android:gravity="top"
-            android:clipToPadding="false"/>
-    </ScrollView>
-
+        app:layout_constraintBottom_toBottomOf="parent"/>
 </androidx.constraintlayout.widget.ConstraintLayout>

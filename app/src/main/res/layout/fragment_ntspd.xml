@@ -9,6 +9,10 @@
         android:layout_width="match_parent"
         android:layout_height="wrap_content">
 
+        <Space
+            android:layout_width="match_parent"
+            android:layout_height="60dp" />
+
         <!-- Title -->
         <TextView
             android:layout_width="wrap_content"
@@ -60,7 +64,7 @@
             android:fontFamily="@font/font_handwriting"
             android:textColor="@color/black"
             android:textSize="20sp"
-            android:buttonTint="@color/black"
+            android:buttonTint="@color/radio_checkbox_tint"
             android:text="Enable Network Speed Indicator" />
 
         <!-- Placement options -->
@@ -86,7 +90,7 @@
                 android:fontFamily="@font/font_handwriting"
                 android:textColor="@color/black"
                 android:textSize="20sp"
-                android:buttonTint="@color/black"
+                android:buttonTint="@color/radio_checkbox_tint"
                 android:text="Left" />
 
             <RadioButton
@@ -96,7 +100,7 @@
                 android:fontFamily="@font/font_handwriting"
                 android:textColor="@color/black"
                 android:textSize="20sp"
-                android:buttonTint="@color/black"
+                android:buttonTint="@color/radio_checkbox_tint"
                 android:text="Center" />
 
             <RadioButton
@@ -107,7 +111,7 @@
                 android:fontFamily="@font/font_handwriting"
                 android:textColor="@color/black"
                 android:textSize="20sp"
-                android:buttonTint="@color/black"
+                android:buttonTint="@color/radio_checkbox_tint"
                 android:text="Right" />
         </RadioGroup>
 
@@ -125,7 +129,9 @@
             android:id="@+id/seekbar_offset"
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
-            android:foregroundTint="@color/black"
+            android:progressTint="@color/black"
+            android:thumbTint="@color/black"
+            android:progressBackgroundTint="#E0434343"
             android:max="100" />
 
         <TextView
