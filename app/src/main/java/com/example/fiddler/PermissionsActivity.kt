@@ -34,6 +34,7 @@ class PermissionsActivity : AppCompatActivity() {
 
     private val REQUEST_CODE_PERMISSIONS = 100
     private val REQUEST_IGNORE_BATTERY_OPTIMIZATIONS = 101
+    private val REQUEST_OVERLAY_PERMISSION = 102
 
     private val prefs: SharedPreferences by lazy {
         getSharedPreferences("fiddler_prefs", MODE_PRIVATE)
@@ -48,7 +49,7 @@ class PermissionsActivity : AppCompatActivity() {
                 )
                 prefs.edit().putString("saf_uri", uri.toString()).apply()
                 setupFoldersAndPlaceholder()
-                checkWriteSettingsPermission() // <-- Check WRITE_SETTINGS here
+                checkWriteSettingsPermission()
             } else {
                 Toast.makeText(this, "Folder selection required to continue.", Toast.LENGTH_LONG).show()
                 promptSAFExplanation()
@@ -102,8 +103,9 @@ class PermissionsActivity : AppCompatActivity() {
 
     override fun onActivityResult(requestCode: Int, resultCode: Int, data: Intent?) {
         super.onActivityResult(requestCode, resultCode, data)
-        if (requestCode == REQUEST_IGNORE_BATTERY_OPTIMIZATIONS) {
-            checkSAFSetup()
+        when (requestCode) {
+            REQUEST_IGNORE_BATTERY_OPTIMIZATIONS -> checkSAFSetup()
+            REQUEST_OVERLAY_PERMISSION -> checkOverlayPermissionGranted()
         }
     }
 
@@ -118,7 +120,7 @@ class PermissionsActivity : AppCompatActivity() {
 
         if (safConfigured) {
             setupFoldersAndPlaceholder()
-            checkWriteSettingsPermission() // <-- check WRITE_SETTINGS before proceeding
+            checkWriteSettingsPermission()
         } else {
             promptSAFExplanation()
         }
@@ -196,8 +198,30 @@ class PermissionsActivity : AppCompatActivity() {
             }
             startActivity(intent)
         } else {
+            checkOverlayPermission()
+        }
+    }
+
+    /** CHECK AND REQUEST OVERLAY PERMISSION */
+    private fun checkOverlayPermission() {
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M &&
+            !Settings.canDrawOverlays(this)
+        ) {
+            Toast.makeText(this, "Grant overlay permission for network speed indicator", Toast.LENGTH_LONG).show()
+            val intent = Intent(Settings.ACTION_MANAGE_OVERLAY_PERMISSION, Uri.parse("package:$packageName"))
+            startActivityForResult(intent, REQUEST_OVERLAY_PERMISSION)
+        } else {
             proceedToMain()
         }
+    }
+
+    private fun checkOverlayPermissionGranted() {
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M &&
+            !Settings.canDrawOverlays(this)
+        ) {
+            Toast.makeText(this, "Overlay permission not granted. Some features may not work.", Toast.LENGTH_LONG).show()
+        }
+        proceedToMain()
     }
 
     private fun proceedToMain() {

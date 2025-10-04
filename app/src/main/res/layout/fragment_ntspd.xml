@@ -164,21 +164,6 @@
             android:layout_marginTop="4dp" />
 
 
-        <!-- Apply button -->
-        <com.google.android.material.button.MaterialButton
-            android:id="@+id/btn_apply"
-            android:layout_width="wrap_content"
-            android:layout_height="wrap_content"
-            android:text="Apply Settings"
-            android:textColor="@color/black"
-            android:textSize="18sp"
-            android:fontFamily="@font/font_handwriting"
-            app:cornerRadius="20dp"
-            app:strokeColor="@color/black"
-            app:strokeWidth="1dp"
-            app:backgroundTint="@color/white"
-            android:layout_marginTop="24dp"
-            android:onClick="onApplyClicked"/>
 
 
         <Space
