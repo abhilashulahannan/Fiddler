@@ -14,4 +14,11 @@
     <style name="TextTitle" parent="TextAppearance.Material3.TitleMedium">
         <item name="android:fontFamily">@font/font_body</item>
     </style>
+
+    <style name="WhiteDialogTheme" parent="Theme.AppCompat.Light.Dialog.Alert">
+        <item name="android:windowBackground">@android:color/white</item>
+        <item name="android:backgroundDimEnabled">true</item>
+        <item name="android:backgroundDimAmount">0.8</item> <!-- black overlay -->
+    </style>
+
 </resources>

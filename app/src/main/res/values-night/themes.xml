@@ -1,23 +1,36 @@
 <resources xmlns:tools="http://schemas.android.com/tools">
 
-    <!-- Base application theme -->
+    <!-- Base application theme using Material3 -->
     <style name="Base.Theme.Fiddler" parent="Theme.Material3.DayNight.NoActionBar">
-        <!-- Set default font globally (handwriting for body) -->
+        <!-- Global font -->
         <item name="android:fontFamily">@font/font_handwriting</item>
-        <item name="colorPrimary">@color/black</item>
-        <item name="colorSecondary">#E7505050</item>
-        <item name="android:statusBarColor">@color/white</item>  <!-- White status bar -->
-        <item name="android:windowLightStatusBar">true</item>    <!-- Dark icons -->
-        <!-- Removed materialThemeOverlay to prevent black overlay -->
+
+        <!-- Material3 color roles -->
+        <item name="colorPrimary">@color/white</item>
+        <item name="colorOnPrimary">@color/black</item>
+        <item name="colorSecondary">@color/white</item>
+        <item name="colorOnSecondary">@color/black</item>
+        <item name="colorSurface">#FFFFFF</item>
+        <item name="colorOnSurface">@color/black</item>
+        <item name="android:colorBackground">@color/white</item>
+        <item name="colorOnBackground">@color/black</item>
+
+        <!-- Status bar customization -->
+        <item name="android:statusBarColor">@color/white</item>
+        <item name="android:windowLightStatusBar">true</item>
     </style>
 
     <!-- App theme inherits from base -->
     <style name="Theme.Fiddler" parent="Base.Theme.Fiddler" />
 
-    <!-- Theme overlay for fullscreen containers (optional) -->
-    <style name="ThemeOverlay.Fiddler.FullscreenContainer" parent="">
-        <item name="fullscreenBackgroundColor">@android:color/transparent</item>
-        <item name="fullscreenTextColor">@color/black</item>
+    <!-- Doodle button overlay style -->
+    <style name="ThemeOverlay.Fiddler.DoodleButton" parent="">
+        <item name="cornerRadius">12dp</item>
+        <item name="strokeColor">@color/black</item>
+        <item name="strokeWidth">3dp</item>
+        <item name="backgroundTint">@color/white</item>
+        <item name="android:textColor">@color/black</item>
+        <item name="android:fontFamily">@font/font_handwriting</item>
     </style>
 
 </resources>

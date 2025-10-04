@@ -1,9 +1,11 @@
 <LinearLayout
     xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:app="http://schemas.android.com/apk/res-auto"
     android:orientation="vertical"
     android:layout_width="match_parent"
     android:layout_height="wrap_content"
-    android:padding="16dp">
+    android:padding="16dp"
+    android:background="?attr/colorSurface">
 
     <Space
         android:layout_width="match_parent"
@@ -17,8 +19,8 @@
         android:fontFamily="@font/font_head"
         android:text="Fiddler"
         android:textSize="72dp"
-        android:textColor="@color/black"
-        android:layout_gravity="left"
+        android:textColor="?attr/colorOnSurface"
+        android:layout_gravity="start"
         android:paddingBottom="0dp"/>
 
     <!-- About Section -->
@@ -27,9 +29,10 @@
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
         android:fontFamily="@font/font_handwriting"
-        android:textColor="@color/black"
+        android:textColor="?attr/colorOnSurface"
         android:text="Fiddler is a super app for customizing your phone and adding unique features."
         android:textSize="20sp"/>
+
     <Space
         android:layout_width="match_parent"
         android:layout_height="64dp" />
@@ -39,50 +42,53 @@
         android:layout_width="wrap_content"
         android:layout_height="wrap_content"
         android:fontFamily="@font/font_body"
-        android:textColor="@color/black"
+        android:textColor="?attr/colorOnSurface"
         android:text="Enabled Sub-apps:"
         android:textSize="28dp"
         android:paddingBottom="8dp" />
 
-    <CheckBox
+    <!-- Material3 CheckBoxes -->
+    <com.google.android.material.checkbox.MaterialCheckBox
         android:id="@+id/cb_ntspd"
         android:layout_width="wrap_content"
         android:layout_height="wrap_content"
         android:fontFamily="@font/font_handwriting"
         android:textSize="20sp"
-        android:textColor="@color/black"
-        android:buttonTint="@color/black"
-        android:text="Net Speed Indicator" />
+        android:textColor="?attr/colorOnSurface"
+        app:buttonTint="@color/checkbox_color"
+        android:text="Net Speed Indicator"/>
 
-    <CheckBox
+    <com.google.android.material.checkbox.MaterialCheckBox
         android:id="@+id/cb_rngtns"
         android:layout_width="wrap_content"
         android:layout_height="wrap_content"
         android:fontFamily="@font/font_handwriting"
         android:textSize="20sp"
-        android:textColor="@color/black"
-        android:buttonTint="@color/black"
-        android:text="Ringtones" />
+        android:textColor="?attr/colorOnSurface"
+        app:buttonTint="@color/checkbox_color"
+        android:text="Ringtones"/>
 
-    <CheckBox
+    <com.google.android.material.checkbox.MaterialCheckBox
         android:id="@+id/cb_fidlnd"
         android:layout_width="wrap_content"
         android:layout_height="wrap_content"
         android:fontFamily="@font/font_handwriting"
         android:textSize="20sp"
-        android:textColor="@color/black"
-        android:buttonTint="@color/black"
-        android:text="Fidland" />
+        android:textColor="?attr/colorOnSurface"
+        app:buttonTint="@color/checkbox_color"
+        android:text="Fidland"/>
 
-    <CheckBox
+    <com.google.android.material.checkbox.MaterialCheckBox
         android:id="@+id/cb_secgrp"
         android:layout_width="wrap_content"
         android:layout_height="wrap_content"
         android:fontFamily="@font/font_handwriting"
         android:textSize="20sp"
-        android:textColor="@color/black"
-        android:buttonTint="@color/black"
-        android:text="Secure Groups" />
+        android:textColor="?attr/colorOnSurface"
+        app:buttonTint="@color/checkbox_color"
+        android:text="Secure Groups"/>
+
+
     <Space
         android:layout_width="match_parent"
         android:layout_height="64dp" />

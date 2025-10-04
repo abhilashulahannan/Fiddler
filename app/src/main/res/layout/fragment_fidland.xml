@@ -1,14 +1,130 @@
 <?xml version="1.0" encoding="utf-8"?>
-<FrameLayout xmlns:android="http://schemas.android.com/apk/res/android"
-    xmlns:tools="http://schemas.android.com/tools"
+<LinearLayout
+    xmlns:android="http://schemas.android.com/apk/res/android"
+    android:id="@+id/rngtns_root"
     android:layout_width="match_parent"
     android:layout_height="match_parent"
-    tools:context=".subapps.Fidland.FidlandFragment">
+    android:orientation="vertical"
+    android:padding="16dp">
 
-    <!-- TODO: Update blank fragment layout -->
-    <TextView
+    <Space
         android:layout_width="match_parent"
-        android:layout_height="match_parent"
-        android:text="@string/hello_blank_fragment" />
+        android:layout_height="60dp" />
 
-</FrameLayout>
+    <!-- Title -->
+    <TextView
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:fontFamily="@font/font_body"
+        android:textColor="@color/black"
+        android:text="FidLand"
+        android:textSize="54sp"
+        android:paddingBottom="8dp" />
+
+    <TextView
+        android:id="@+id/tv_about"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:fontFamily="@font/font_handwriting"
+        android:textColor="@color/black"
+        android:text="My attempt at dynamic island."
+        android:textSize="20sp" />
+
+    <Space
+        android:layout_width="match_parent"
+        android:layout_height="32dp" />
+
+    <!-- Section header -->
+    <TextView
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:fontFamily="@font/font_body"
+        android:textColor="@color/black"
+        android:text="All things status bar"
+        android:textSize="28sp"
+        android:paddingBottom="8dp" />
+
+    <TextView
+        android:id="@+id/tv_netstatnfo"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:fontFamily="@font/font_handwriting"
+        android:textColor="@color/black"
+        android:textSize="20sp"
+        android:text="All configuration for items within the notification bar. Dynamic settings and elements withing the status bar." />
+
+    <Space
+        android:layout_width="match_parent"
+        android:layout_height="60dp" />
+
+    <!-- Section header -->
+    <TextView
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:fontFamily="@font/font_body"
+        android:textColor="@color/black"
+        android:text="Music App Integration"
+        android:textSize="28sp"
+        android:paddingBottom="8dp" />
+
+    <TextView
+        android:id="@+id/tv_mskint"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:fontFamily="@font/font_handwriting"
+        android:textColor="@color/black"
+        android:textSize="20sp"
+        android:text="Integrate media apps like spotify, Youtube Music. Quick player actions and queue list access." />
+
+
+    <Space
+        android:layout_width="match_parent"
+        android:layout_height="60dp" />
+
+    <!-- Section header -->
+    <TextView
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:fontFamily="@font/font_body"
+        android:textColor="@color/black"
+        android:text="Applications Page"
+        android:textSize="28sp"
+        android:paddingBottom="8dp" />
+
+    <TextView
+        android:id="@+id/tv_addapps"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:fontFamily="@font/font_handwriting"
+        android:textColor="@color/black"
+        android:textSize="20sp"
+        android:text="All configuration for items within the notification bar." />
+
+    <Space
+        android:layout_width="match_parent"
+        android:layout_height="60dp" />
+
+    <!-- Section header -->
+    <TextView
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:fontFamily="@font/font_body"
+        android:textColor="@color/black"
+        android:text="Quick Setting"
+        android:textSize="28sp"
+        android:paddingBottom="8dp" />
+
+    <TextView
+        android:id="@+id/tv_qckset"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:fontFamily="@font/font_handwriting"
+        android:textColor="@color/black"
+        android:textSize="20sp"
+        android:text="All configuration for items Quick Setting page." />
+
+    <Space
+        android:layout_width="match_parent"
+        android:layout_height="60dp" />
+
+</LinearLayout>

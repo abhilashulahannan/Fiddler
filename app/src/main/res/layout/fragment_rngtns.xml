@@ -1,56 +1,193 @@
-<?xml version="1.0" encoding="utf-8"?>
-<LinearLayout
+<ScrollView
     xmlns:android="http://schemas.android.com/apk/res/android"
-    android:id="@+id/rngtns_root"
+    xmlns:app="http://schemas.android.com/apk/res-auto"
     android:layout_width="match_parent"
     android:layout_height="match_parent"
-    android:orientation="vertical"
-    android:padding="16dp">
+    android:background="?attr/colorSurface">
 
-    <Space
-        android:layout_width="match_parent"
-        android:layout_height="60dp" />
-
-    <!-- Title -->
-    <TextView
-        android:layout_width="wrap_content"
-        android:layout_height="wrap_content"
-        android:fontFamily="@font/font_body"
-        android:textColor="@color/black"
-        android:text="Audio"
-        android:textSize="54sp"
-        android:paddingBottom="8dp" />
-
-    <TextView
-        android:id="@+id/tv_about"
+    <LinearLayout
+        android:id="@+id/rngtns_root"
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
-        android:fontFamily="@font/font_handwriting"
-        android:textColor="@color/black"
-        android:text="Configurable elements like rotating ringtones, etc."
-        android:textSize="20sp" />
+        android:orientation="vertical"
+        android:padding="16dp">
 
-    <Space
-        android:layout_width="match_parent"
-        android:layout_height="32dp" />
+        <Space
+            android:layout_width="match_parent"
+            android:layout_height="60dp" />
 
-    <!-- Section header -->
-    <TextView
-        android:layout_width="wrap_content"
-        android:layout_height="wrap_content"
-        android:fontFamily="@font/font_body"
-        android:textColor="@color/black"
-        android:text="Rotating Ringtones"
-        android:textSize="28sp"
-        android:paddingBottom="8dp" />
+        <!-- Main Title -->
+        <TextView
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:fontFamily="@font/font_body"
+            android:textColor="?attr/colorOnSurface"
+            android:text="Audio"
+            android:textSize="54sp"
+            android:paddingBottom="8dp" />
 
-    <TextView
-        android:id="@+id/tv_netstatnfo"
-        android:layout_width="match_parent"
-        android:layout_height="wrap_content"
-        android:fontFamily="@font/font_handwriting"
-        android:textColor="@color/black"
-        android:textSize="20sp"
-        android:text="Set multiple audio files as ringtones which switches after  every ring." />
+        <!-- About Description -->
+        <TextView
+            android:id="@+id/tv_about"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:fontFamily="@font/font_handwriting"
+            android:textColor="?attr/colorOnSurface"
+            android:text="Configurable elements like rotating ringtones, etc."
+            android:textSize="20sp" />
 
-</LinearLayout>
+        <Space
+            android:layout_width="match_parent"
+            android:layout_height="32dp" />
+
+        <!-- Section Header -->
+        <TextView
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:fontFamily="@font/font_body"
+            android:textColor="?attr/colorOnSurface"
+            android:text="Rotating Ringtones"
+            android:textSize="28sp"
+            android:paddingBottom="8dp" />
+
+        <!-- Section Description -->
+        <TextView
+            android:id="@+id/tv_netstatnfo"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:fontFamily="@font/font_handwriting"
+            android:text="Set multiple audio files as ringtones which switches after every ring."
+            android:textColor="?attr/colorOnSurface"
+            android:textSize="20sp" />
+
+        <Space
+            android:layout_width="match_parent"
+            android:layout_height="16dp" />
+
+        <!-- Enable switch -->
+        <CheckBox
+            android:id="@+id/switch_enable"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:fontFamily="@font/font_handwriting"
+            android:textColor="?attr/colorOnSurface"
+            android:textSize="20sp"
+            android:buttonTint="@color/checkbox_color"
+            android:text="Enable Ringtone Rotation" />
+
+        <!-- Placement options -->
+        <TextView
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:text="Rotation Style:"
+            android:fontFamily="@font/font_body"
+            android:textColor="?attr/colorOnSurface"
+            android:textSize="22sp"
+            android:layout_marginTop="5dp" />
+
+        <RadioGroup
+            android:id="@+id/radio_group_placement"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:orientation="vertical">
+
+            <com.google.android.material.radiobutton.MaterialRadioButton
+                android:id="@+id/radio_er"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:fontFamily="@font/font_handwriting"
+                android:textColor="?attr/colorOnSurface"
+                android:textSize="20sp"
+                app:buttonTint="@color/radio_checkbox_tint"
+                android:text="Each ring." />
+
+            <com.google.android.material.radiobutton.MaterialRadioButton
+                android:id="@+id/radio_eh"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:fontFamily="@font/font_handwriting"
+                android:textColor="?attr/colorOnSurface"
+                android:textSize="20sp"
+                app:buttonTint="@color/radio_checkbox_tint"
+                android:text="Each hour" />
+
+            <com.google.android.material.radiobutton.MaterialRadioButton
+                android:id="@+id/radio_ed"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:checked="true"
+                android:fontFamily="@font/font_handwriting"
+                android:textColor="?attr/colorOnSurface"
+                android:textSize="20sp"
+                app:buttonTint="@color/radio_checkbox_tint"
+                android:text="Each day" />
+        </RadioGroup>
+
+
+        <!-- Songs in rotation -->
+        <TextView
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:text="Songs in rotation:"
+            android:fontFamily="@font/font_body"
+            android:textColor="?attr/colorOnSurface"
+            android:textSize="22sp"
+            android:layout_marginTop="5dp" />
+
+        <LinearLayout
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:orientation="horizontal"
+            android:gravity="start"
+            android:layout_marginTop="5dp">
+
+            <com.google.android.material.button.MaterialButton
+                android:id="@+id/btn_sync"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:text="Sync Directory"
+                android:textColor="@color/black"
+                android:textSize="15sp"
+                android:fontFamily="@font/font_handwriting"
+                app:cornerRadius="20dp"
+                app:strokeColor="@color/black"
+                app:strokeWidth="1dp"
+                app:backgroundTint="@color/white"
+                android:onClick="onSyncClicked" />
+
+            <Space
+                android:layout_width="5dp"
+                android:layout_height="wrap_content"/>
+
+            <com.google.android.material.button.MaterialButton
+                android:id="@+id/btn_rotate_now"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:text="Trigger Rotate"
+                android:textColor="@color/black"
+                android:textSize="15sp"
+                android:fontFamily="@font/font_handwriting"
+                app:cornerRadius="20dp"
+                app:strokeColor="@color/black"
+                app:strokeWidth="1dp"
+                app:backgroundTint="@color/white"
+                android:onClick="onRotateNowClicked"/>
+
+        </LinearLayout>
+
+        <Space
+            android:layout_width="match_parent"
+            android:layout_height="16dp" />
+
+        <!-- RecyclerView for audio files -->
+        <androidx.recyclerview.widget.RecyclerView
+            android:id="@+id/audioRecyclerView"
+            android:layout_width="match_parent"
+            android:layout_height="250dp"
+            android:scrollbars="vertical" />
+
+        <Space
+            android:layout_width="match_parent"
+            android:layout_height="60dp" />
+    </LinearLayout>
+</ScrollView>

@@ -1,0 +1,66 @@
+<?xml version="1.0" encoding="utf-8"?>
+<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:app="http://schemas.android.com/apk/res-auto"
+    android:orientation="vertical"
+    android:gravity="center"
+    android:padding="32dp"
+    android:layout_width="match_parent"
+    android:layout_height="match_parent"
+    android:background="@color/white">
+
+    <!-- Main Title -->
+    <TextView
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:fontFamily="@font/font_body"
+        android:textColor="@color/black"
+        android:text="Permission"
+        android:textSize="54sp"
+        android:paddingBottom="8dp" />
+
+    <TextView
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:fontFamily="@font/font_body"
+        android:textColor="@color/black"
+        android:text="and"
+        android:textSize="54sp"
+        android:paddingBottom="8dp" />
+
+    <TextView
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:fontFamily="@font/font_body"
+        android:textColor="@color/black"
+        android:text="Directories"
+        android:textSize="54sp"
+        android:paddingBottom="8dp" />
+
+    <TextView
+        android:text="Fiddler needs some permissions to run smoothly. It will create directories at required locations now, to mitigate annoyance later."
+        android:textSize="18sp"
+        android:textColor="@color/black"
+        android:gravity="center"
+        android:padding="16dp"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"/>
+
+    <Space
+        android:layout_width="match_parent"
+        android:layout_height="50dp" />
+
+    <!-- Material3 Doodle Button -->
+    <com.google.android.material.button.MaterialButton
+        android:id="@+id/btnGrant"
+        android:text="Grant Permissions"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:textColor="@color/black"
+        android:textSize="16sp"
+        android:fontFamily="@font/font_head"
+        app:cornerRadius="12dp"
+        app:strokeColor="@color/black"
+        app:strokeWidth="2dp"
+        app:backgroundTint="@color/white"
+        android:onClick="onGrantClicked"/>
+</LinearLayout>
