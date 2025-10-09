@@ -1,60 +1,158 @@
 package com.example.fiddler.subapps.Fidland
 
-import android.os.Bundle
-import androidx.fragment.app.Fragment
+import android.content.Context
+import android.content.Intent
+import android.os.Build
+import android.provider.Settings
+import android.text.Editable
+import android.text.TextWatcher
 import android.view.LayoutInflater
 import android.view.View
 import android.view.ViewGroup
+import android.widget.*
+import androidx.fragment.app.Fragment
 import com.example.fiddler.R
 
-// TODO: Rename parameter arguments, choose names that match
-// the fragment initialization parameters, e.g. ARG_ITEM_NUMBER
-private const val ARG_PARAM1 = "param1"
-private const val ARG_PARAM2 = "param2"
-
-/**
- * A simple [Fragment] subclass.
- * Use the [FidlandFragment.newInstance] factory method to
- * create an instance of this fragment.
- */
 class FidlandFragment : Fragment() {
-    // TODO: Rename and change types of parameters
-    private var param1: String? = null
-    private var param2: String? = null
 
-    override fun onCreate(savedInstanceState: Bundle?) {
-        super.onCreate(savedInstanceState)
-        arguments?.let {
-            param1 = it.getString(ARG_PARAM1)
-            param2 = it.getString(ARG_PARAM2)
-        }
-    }
+    private lateinit var enableSwitch: CheckBox
+    private lateinit var cbNetworkTraffic: CheckBox
+    private lateinit var cbEqualizerInfo: CheckBox
+    private lateinit var cbNotifications: CheckBox
+    private lateinit var cbMusicPlayer: CheckBox
+    private lateinit var cbMusicQueue: CheckBox
+    private lateinit var cbQuickSettings: CheckBox
+    private lateinit var inputRows: EditText
+    private lateinit var inputColumns: EditText
+    private lateinit var sbAnimationSpeed: SeekBar
+    private lateinit var sbTransparency: SeekBar
+    private lateinit var sbCornerRadius: SeekBar
+
+    private val prefsName = "fidland_prefs"
 
     override fun onCreateView(
         inflater: LayoutInflater, container: ViewGroup?,
-        savedInstanceState: Bundle?
-    ): View? {
-        // Inflate the layout for this fragment
-        return inflater.inflate(R.layout.fragment_fidland, container, false)
+        savedInstanceState: android.os.Bundle?
+    ): View {
+        val view = inflater.inflate(R.layout.fragment_fidland, container, false)
+
+        // Bind views
+        enableSwitch = view.findViewById(R.id.switch_enable)
+        cbNetworkTraffic = view.findViewById(R.id.cb_network_traffic)
+        cbEqualizerInfo = view.findViewById(R.id.cb_equalizer_info)
+        cbNotifications = view.findViewById(R.id.cb_notifications)
+        cbMusicPlayer = view.findViewById(R.id.cb_music_player)
+        cbMusicQueue = view.findViewById(R.id.cb_music_queue)
+        cbQuickSettings = view.findViewById(R.id.cb_quick_settings)
+        inputRows = view.findViewById(R.id.input_rows)
+        inputColumns = view.findViewById(R.id.input_columns)
+        sbAnimationSpeed = view.findViewById(R.id.sb_animation_speed)
+        sbTransparency = view.findViewById(R.id.sb_transparency)
+        sbCornerRadius = view.findViewById(R.id.sb_corner_radius)
+
+        // Load saved settings
+        loadSettings()
+
+        // Enable switch: start/stop FidlandService
+        enableSwitch.setOnCheckedChangeListener { _, isChecked ->
+            val serviceIntent = Intent(requireContext(), FidlandService::class.java)
+            if (isChecked) {
+                if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M && !Settings.canDrawOverlays(requireContext())) {
+                    Toast.makeText(requireContext(), "Please grant overlay permission", Toast.LENGTH_SHORT).show()
+                    startActivity(Intent(Settings.ACTION_MANAGE_OVERLAY_PERMISSION))
+                    enableSwitch.isChecked = false
+                } else {
+                    requireContext().startService(serviceIntent)
+                }
+            } else {
+                requireContext().stopService(serviceIntent)
+            }
+        }
+
+        // Add realtime listeners
+        addRealtimeChangeListeners()
+
+        return view
     }
 
-    companion object {
-        /**
-         * Use this factory method to create a new instance of
-         * this fragment using the provided parameters.
-         *
-         * @param param1 Parameter 1.
-         * @param param2 Parameter 2.
-         * @return A new instance of fragment FidlandFragment.
-         */
-        // TODO: Rename and change types and number of parameters
-        @JvmStatic
-        fun newInstance(param1: String, param2: String) =
-            FidlandFragment().apply {
-                arguments = Bundle().apply {
-                    putString(ARG_PARAM1, param1)
-                    putString(ARG_PARAM2, param2)
-                }
+    private fun loadSettings() {
+        val prefs = requireContext().getSharedPreferences(prefsName, Context.MODE_PRIVATE)
+
+        enableSwitch.isChecked = prefs.getBoolean("enabled", true)
+        cbNetworkTraffic.isChecked = prefs.getBoolean("network_traffic", true)
+        cbEqualizerInfo.isChecked = prefs.getBoolean("equalizer_info", true)
+        cbNotifications.isChecked = prefs.getBoolean("notifications", true)
+        cbMusicPlayer.isChecked = prefs.getBoolean("music_player", true)
+        cbMusicQueue.isChecked = prefs.getBoolean("music_queue", true)
+        cbQuickSettings.isChecked = prefs.getBoolean("quick_settings", true)
+
+        inputRows.setText(prefs.getInt("app_rows", 3).toString())
+        inputColumns.setText(prefs.getInt("app_columns", 4).toString())
+
+        sbAnimationSpeed.progress = prefs.getInt("animation_speed", 50)
+        sbTransparency.progress = prefs.getInt("transparency", 80)
+        sbCornerRadius.progress = prefs.getInt("corner_radius", 40)
+    }
+
+    private fun addRealtimeChangeListeners() {
+        val prefs = requireContext().getSharedPreferences(prefsName, Context.MODE_PRIVATE)
+        val editor = prefs.edit()
+
+        val checkBoxes = listOf(
+            cbNetworkTraffic to "network_traffic",
+            cbEqualizerInfo to "equalizer_info",
+            cbNotifications to "notifications",
+            cbMusicPlayer to "music_player",
+            cbMusicQueue to "music_queue",
+            cbQuickSettings to "quick_settings"
+        )
+
+        checkBoxes.forEach { (checkBox, key) ->
+            checkBox.setOnCheckedChangeListener { _, isChecked ->
+                editor.putBoolean(key, isChecked).apply()
+                resetFidland()
             }
+        }
+
+        val seekBars = listOf(
+            sbAnimationSpeed to "animation_speed",
+            sbTransparency to "transparency",
+            sbCornerRadius to "corner_radius"
+        )
+
+        seekBars.forEach { (seekBar, key) ->
+            seekBar.setOnSeekBarChangeListener(object : SeekBar.OnSeekBarChangeListener {
+                override fun onProgressChanged(seekBar: SeekBar?, progress: Int, fromUser: Boolean) {
+                    editor.putInt(key, progress).apply()
+                    resetFidland()
+                }
+                override fun onStartTrackingTouch(seekBar: SeekBar?) {}
+                override fun onStopTrackingTouch(seekBar: SeekBar?) {}
+            })
+        }
+
+        inputRows.addTextChangedListener(object : TextWatcher {
+            override fun afterTextChanged(s: Editable?) {
+                editor.putInt("app_rows", s.toString().toIntOrNull() ?: 3).apply()
+                resetFidland()
+            }
+            override fun beforeTextChanged(s: CharSequence?, start: Int, count: Int, after: Int) {}
+            override fun onTextChanged(s: CharSequence?, start: Int, before: Int, count: Int) {}
+        })
+
+        inputColumns.addTextChangedListener(object : TextWatcher {
+            override fun afterTextChanged(s: Editable?) {
+                editor.putInt("app_columns", s.toString().toIntOrNull() ?: 4).apply()
+                resetFidland()
+            }
+            override fun beforeTextChanged(s: CharSequence?, start: Int, count: Int, after: Int) {}
+            override fun onTextChanged(s: CharSequence?, start: Int, before: Int, count: Int) {}
+        })
+    }
+
+    private fun resetFidland() {
+        val serviceIntent = Intent(requireContext(), FidlandService::class.java)
+        requireContext().stopService(serviceIntent)
+        requireContext().startService(serviceIntent)
     }
 }

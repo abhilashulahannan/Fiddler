@@ -20,18 +20,6 @@ import androidx.documentfile.provider.DocumentFile
 
 class PermissionsActivity : AppCompatActivity() {
 
-    private val REQUIRED_PERMISSIONS = mutableListOf(
-        Manifest.permission.CAMERA,
-        Manifest.permission.READ_CONTACTS,
-        Manifest.permission.CALL_PHONE,
-        Manifest.permission.ACCESS_FINE_LOCATION
-    ).apply {
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
-            add(Manifest.permission.BLUETOOTH_CONNECT)
-            add(Manifest.permission.BLUETOOTH_SCAN)
-        }
-    }.toTypedArray()
-
     private val REQUEST_CODE_PERMISSIONS = 100
     private val REQUEST_IGNORE_BATTERY_OPTIMIZATIONS = 101
     private val REQUEST_OVERLAY_PERMISSION = 102
@@ -63,7 +51,27 @@ class PermissionsActivity : AppCompatActivity() {
     }
 
     private fun checkAndRequestPermissions() {
-        val missingPermissions = REQUIRED_PERMISSIONS.filter {
+        val requiredPermissions = mutableListOf(
+            Manifest.permission.CAMERA,
+            Manifest.permission.READ_CONTACTS,
+            Manifest.permission.CALL_PHONE,
+            Manifest.permission.ACCESS_FINE_LOCATION
+        )
+
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
+            requiredPermissions.add(Manifest.permission.BLUETOOTH_CONNECT)
+            requiredPermissions.add(Manifest.permission.BLUETOOTH_SCAN)
+            requiredPermissions.add(Manifest.permission.BLUETOOTH_ADVERTISE)
+        }
+
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
+            requiredPermissions.add(Manifest.permission.READ_MEDIA_AUDIO)
+        } else {
+            requiredPermissions.add(Manifest.permission.READ_EXTERNAL_STORAGE)
+            requiredPermissions.add(Manifest.permission.WRITE_EXTERNAL_STORAGE)
+        }
+
+        val missingPermissions = requiredPermissions.filter {
             ContextCompat.checkSelfPermission(this, it) != PackageManager.PERMISSION_GRANTED
         }
 
@@ -166,7 +174,6 @@ class PermissionsActivity : AppCompatActivity() {
         safLauncher.launch(null)
     }
 
-    /** SAF-compatible folder setup using DocumentFile */
     private fun setupFoldersAndPlaceholder() {
         try {
             val uriString = prefs.getString("saf_uri", null)
@@ -180,7 +187,8 @@ class PermissionsActivity : AppCompatActivity() {
 
             val audioFolder = rootDoc.findFile("Audio") ?: rootDoc.createDirectory("Audio")
             audioFolder?.findFile("Fidtones") ?: audioFolder?.createDirectory("Fidtones")
-            audioFolder?.findFile("fiddler_ringtone.ogg") ?: audioFolder?.createFile("audio/ogg", "fiddler_ringtone.ogg")
+            audioFolder?.findFile("fiddler_ringtone.ogg")
+                ?: audioFolder?.createFile("audio/ogg", "fiddler_ringtone.ogg")
 
             Toast.makeText(this, "Folders and placeholder ready!", Toast.LENGTH_LONG).show()
         } catch (e: Exception) {
@@ -189,7 +197,6 @@ class PermissionsActivity : AppCompatActivity() {
         }
     }
 
-    /** CHECK AND REQUEST WRITE_SETTINGS PERMISSION */
     private fun checkWriteSettingsPermission() {
         if (!Settings.System.canWrite(this)) {
             Toast.makeText(this, "Grant permission to change system ringtone", Toast.LENGTH_LONG).show()
@@ -202,7 +209,6 @@ class PermissionsActivity : AppCompatActivity() {
         }
     }
 
-    /** CHECK AND REQUEST OVERLAY PERMISSION */
     private fun checkOverlayPermission() {
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M &&
             !Settings.canDrawOverlays(this)

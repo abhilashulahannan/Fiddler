@@ -1,130 +1,324 @@
 <?xml version="1.0" encoding="utf-8"?>
-<LinearLayout
-    xmlns:android="http://schemas.android.com/apk/res/android"
-    android:id="@+id/rngtns_root"
+<ScrollView xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:app="http://schemas.android.com/apk/res-auto"
     android:layout_width="match_parent"
     android:layout_height="match_parent"
-    android:orientation="vertical"
-    android:padding="16dp">
+    android:background="?attr/colorSurface">
 
-    <Space
-        android:layout_width="match_parent"
-        android:layout_height="60dp" />
-
-    <!-- Title -->
-    <TextView
-        android:layout_width="wrap_content"
-        android:layout_height="wrap_content"
-        android:fontFamily="@font/font_body"
-        android:textColor="@color/black"
-        android:text="FidLand"
-        android:textSize="54sp"
-        android:paddingBottom="8dp" />
-
-    <TextView
-        android:id="@+id/tv_about"
+    <LinearLayout
+        android:id="@+id/fidland_root"
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
-        android:fontFamily="@font/font_handwriting"
-        android:textColor="@color/black"
-        android:text="My attempt at dynamic island."
-        android:textSize="20sp" />
+        android:orientation="vertical"
+        android:padding="16dp">
 
-    <Space
-        android:layout_width="match_parent"
-        android:layout_height="32dp" />
+        <Space
+            android:layout_width="match_parent"
+            android:layout_height="60dp" />
 
-    <!-- Section header -->
-    <TextView
-        android:layout_width="wrap_content"
-        android:layout_height="wrap_content"
-        android:fontFamily="@font/font_body"
-        android:textColor="@color/black"
-        android:text="All things status bar"
-        android:textSize="28sp"
-        android:paddingBottom="8dp" />
+        <!-- Title -->
+        <TextView
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:fontFamily="@font/font_body"
+            android:textColor="?attr/colorOnSurface"
+            android:text="FidLand"
+            android:textSize="54sp"
+            android:paddingBottom="8dp" />
 
-    <TextView
-        android:id="@+id/tv_netstatnfo"
-        android:layout_width="match_parent"
-        android:layout_height="wrap_content"
-        android:fontFamily="@font/font_handwriting"
-        android:textColor="@color/black"
-        android:textSize="20sp"
-        android:text="All configuration for items within the notification bar. Dynamic settings and elements withing the status bar." />
+        <!-- About Description -->
+        <TextView
+            android:id="@+id/tv_about"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:fontFamily="@font/font_handwriting"
+            android:textColor="?attr/colorOnSurface"
+            android:text="My attempt at dynamic island."
+            android:textSize="20sp" />
 
-    <Space
-        android:layout_width="match_parent"
-        android:layout_height="60dp" />
+        <Space
+            android:layout_width="match_parent"
+            android:layout_height="32dp" />
 
-    <!-- Section header -->
-    <TextView
-        android:layout_width="wrap_content"
-        android:layout_height="wrap_content"
-        android:fontFamily="@font/font_body"
-        android:textColor="@color/black"
-        android:text="Music App Integration"
-        android:textSize="28sp"
-        android:paddingBottom="8dp" />
+        <!-- Enable switch -->
+        <CheckBox
+            android:id="@+id/switch_enable"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:fontFamily="@font/font_handwriting"
+            android:textColor="?attr/colorOnSurface"
+            android:textSize="20sp"
+            android:buttonTint="@color/checkbox_color"
+            android:text="Enable Fidland" />
 
-    <TextView
-        android:id="@+id/tv_mskint"
-        android:layout_width="match_parent"
-        android:layout_height="wrap_content"
-        android:fontFamily="@font/font_handwriting"
-        android:textColor="@color/black"
-        android:textSize="20sp"
-        android:text="Integrate media apps like spotify, Youtube Music. Quick player actions and queue list access." />
+        <Space
+            android:layout_width="match_parent"
+            android:layout_height="32dp" />
+
+        <!-- Status Bar Section -->
+        <TextView
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:fontFamily="@font/font_body"
+            android:textColor="?attr/colorOnSurface"
+            android:text="All things status bar"
+            android:textSize="28sp"
+            android:paddingBottom="8dp" />
+
+        <TextView
+            android:id="@+id/tv_netstatnfo"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:fontFamily="@font/font_handwriting"
+            android:textColor="?attr/colorOnSurface"
+            android:textSize="20sp"
+            android:text="Dynamic configurations for all status bar elements — network, equalizer, and indicators." />
+
+        <CheckBox
+            android:id="@+id/cb_network_traffic"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:text="Network Traffic Module"
+            android:fontFamily="@font/font_handwriting"
+            android:textColor="?attr/colorOnSurface"
+            app:buttonTint="@color/checkbox_color" />
+
+        <CheckBox
+            android:id="@+id/cb_equalizer_info"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:text="Equalizer / Media Info"
+            android:fontFamily="@font/font_handwriting"
+            android:textColor="?attr/colorOnSurface"
+            app:buttonTint="@color/checkbox_color" />
+
+        <CheckBox
+            android:id="@+id/cb_notifications"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:text="Notifications Display"
+            android:fontFamily="@font/font_handwriting"
+            android:textColor="?attr/colorOnSurface"
+            app:buttonTint="@color/checkbox_color" />
+
+        <Space
+            android:layout_width="match_parent"
+            android:layout_height="60dp" />
+
+        <!-- Music App Integration -->
+        <TextView
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:fontFamily="@font/font_body"
+            android:textColor="?attr/colorOnSurface"
+            android:text="Music App Integration"
+            android:textSize="28sp"
+            android:paddingBottom="8dp" />
+
+        <TextView
+            android:id="@+id/tv_mskint"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:fontFamily="@font/font_handwriting"
+            android:textColor="?attr/colorOnSurface"
+            android:textSize="20sp"
+            android:text="Integrate media apps like Spotify or YouTube Music. Quick player actions, seek bar, and queue access." />
+
+        <CheckBox
+            android:id="@+id/cb_music_player"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:text="Enable Music Player Controls"
+            android:fontFamily="@font/font_handwriting"
+            android:textColor="?attr/colorOnSurface"
+            app:buttonTint="@color/checkbox_color" />
+
+        <CheckBox
+            android:id="@+id/cb_music_queue"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:text="Enable Music Queue Page"
+            android:fontFamily="@font/font_handwriting"
+            android:textColor="?attr/colorOnSurface"
+            app:buttonTint="@color/checkbox_color" />
+
+        <Space
+            android:layout_width="match_parent"
+            android:layout_height="60dp" />
+
+        <!-- Applications Page -->
+        <TextView
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:fontFamily="@font/font_body"
+            android:textColor="?attr/colorOnSurface"
+            android:text="Applications Page"
+            android:textSize="28sp"
+            android:paddingBottom="8dp" />
+
+        <TextView
+            android:id="@+id/tv_addapps"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:fontFamily="@font/font_handwriting"
+            android:textColor="?attr/colorOnSurface"
+            android:textSize="20sp"
+            android:text="Configure your app launcher grid layout and pinned apps." />
+
+        <LinearLayout
+            android:orientation="horizontal"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:paddingTop="8dp">
+
+            <TextView
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:text="Rows:"
+                android:textColor="?attr/colorOnSurface"
+                android:fontFamily="@font/font_handwriting"
+                android:padding="4dp" />
+
+            <EditText
+                android:id="@+id/input_rows"
+                android:layout_width="48dp"
+                android:layout_height="wrap_content"
+                android:inputType="number"
+                android:text="3"
+                android:backgroundTint="?attr/colorOutline"
+                android:textColor="?attr/colorOnSurface" />
+
+            <TextView
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:text="Columns:"
+                android:textColor="?attr/colorOnSurface"
+                android:fontFamily="@font/font_handwriting"
+                android:padding="4dp" />
+
+            <EditText
+                android:id="@+id/input_columns"
+                android:layout_width="48dp"
+                android:layout_height="wrap_content"
+                android:inputType="number"
+                android:text="4"
+                android:backgroundTint="?attr/colorOutline"
+                android:textColor="?attr/colorOnSurface" />
+        </LinearLayout>
+
+        <Space
+            android:layout_width="match_parent"
+            android:layout_height="60dp" />
+
+        <!-- Quick Settings -->
+        <TextView
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:fontFamily="@font/font_body"
+            android:textColor="?attr/colorOnSurface"
+            android:text="Quick Settings"
+            android:textSize="28sp"
+            android:paddingBottom="8dp" />
+
+        <TextView
+            android:id="@+id/tv_qckset"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:fontFamily="@font/font_handwriting"
+            android:textColor="?attr/colorOnSurface"
+            android:textSize="20sp"
+            android:text="Configure your quick setting tiles and toggles. Add, remove, or rearrange them from here." />
+
+        <CheckBox
+            android:id="@+id/cb_quick_settings"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:text="Enable Quick Setting Page"
+            android:fontFamily="@font/font_handwriting"
+            android:textColor="?attr/colorOnSurface"
+            app:buttonTint="@color/checkbox_color" />
+
+        <Space
+            android:layout_width="match_parent"
+            android:layout_height="60dp" />
+
+        <!-- Visual Customization -->
+        <TextView
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:fontFamily="@font/font_body"
+            android:textColor="?attr/colorOnSurface"
+            android:text="Visual Customization"
+            android:textSize="28sp"
+            android:paddingBottom="8dp" />
+
+        <TextView
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:fontFamily="@font/font_handwriting"
+            android:textColor="?attr/colorOnSurface"
+            android:textSize="20sp"
+            android:text="Tweak animation speed, corner radius, and transparency of the Fidland dashboard." />
+
+        <TextView
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:text="Animation Speed"
+            android:textColor="?attr/colorOnSurface"
+            android:fontFamily="@font/font_handwriting"
+            android:paddingTop="8dp" />
+
+        <!-- Custom styled SeekBar for Animation Speed -->
+        <SeekBar
+            android:id="@+id/sb_animation_speed"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:max="100"
+            android:progress="50"
+            android:progressTint="#353535"
+            android:thumbTint="@color/black"
+            android:progressBackgroundTint="@color/black_overlay" />
+
+        <TextView
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:text="Transparency"
+            android:textColor="?attr/colorOnSurface"
+            android:fontFamily="@font/font_handwriting"
+            android:paddingTop="8dp" />
+
+        <SeekBar
+            android:id="@+id/sb_transparency"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:max="100"
+            android:progressTint="#353535"
+            android:thumbTint="@color/black"
+            android:progressBackgroundTint="@color/black_overlay"
+            android:progress="80" />
+
+        <TextView
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:text="Corner Radius"
+            android:textColor="?attr/colorOnSurface"
+            android:fontFamily="@font/font_handwriting"
+            android:paddingTop="8dp" />
+
+        <SeekBar
+            android:id="@+id/sb_corner_radius"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:progressTint="#353535"
+            android:thumbTint="@color/black"
+            android:progressBackgroundTint="@color/black_overlay"
+            android:max="100"
+            android:progress="40" />
+
+        <Space
+            android:layout_width="match_parent"
+            android:layout_height="60dp" />
 
 
-    <Space
-        android:layout_width="match_parent"
-        android:layout_height="60dp" />
-
-    <!-- Section header -->
-    <TextView
-        android:layout_width="wrap_content"
-        android:layout_height="wrap_content"
-        android:fontFamily="@font/font_body"
-        android:textColor="@color/black"
-        android:text="Applications Page"
-        android:textSize="28sp"
-        android:paddingBottom="8dp" />
-
-    <TextView
-        android:id="@+id/tv_addapps"
-        android:layout_width="match_parent"
-        android:layout_height="wrap_content"
-        android:fontFamily="@font/font_handwriting"
-        android:textColor="@color/black"
-        android:textSize="20sp"
-        android:text="All configuration for items within the notification bar." />
-
-    <Space
-        android:layout_width="match_parent"
-        android:layout_height="60dp" />
-
-    <!-- Section header -->
-    <TextView
-        android:layout_width="wrap_content"
-        android:layout_height="wrap_content"
-        android:fontFamily="@font/font_body"
-        android:textColor="@color/black"
-        android:text="Quick Setting"
-        android:textSize="28sp"
-        android:paddingBottom="8dp" />
-
-    <TextView
-        android:id="@+id/tv_qckset"
-        android:layout_width="match_parent"
-        android:layout_height="wrap_content"
-        android:fontFamily="@font/font_handwriting"
-        android:textColor="@color/black"
-        android:textSize="20sp"
-        android:text="All configuration for items Quick Setting page." />
-
-    <Space
-        android:layout_width="match_parent"
-        android:layout_height="60dp" />
-
-</LinearLayout>
+    </LinearLayout>
+</ScrollView>

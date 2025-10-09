@@ -148,7 +148,7 @@
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
             android:max="100"
-            android:progressTint="#00000000"
+            android:progressTint="#00353535"
             android:thumbTint="@color/black"
             android:progressBackgroundTint="@color/black_overlay" />
 

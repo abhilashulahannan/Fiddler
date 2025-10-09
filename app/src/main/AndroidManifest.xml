@@ -14,7 +14,7 @@
     <uses-permission android:name="android.permission.BLUETOOTH_SCAN" />
     <uses-permission android:name="android.permission.BLUETOOTH_ADVERTISE" />
 
-    <!-- Storage permissions for ringtones -->
+    <!-- Storage permissions for ringtones and media -->
     <uses-permission android:name="android.permission.READ_MEDIA_AUDIO" />
     <uses-permission android:name="android.permission.READ_EXTERNAL_STORAGE" />
     <uses-permission android:name="android.permission.WRITE_EXTERNAL_STORAGE" />
@@ -83,6 +83,11 @@
         <!-- Network Speed Service (overlay) -->
         <service
             android:name=".subapps.ntspd.NetSpeedService"
+            android:exported="false" />
+
+        <!-- Fidland overlay service -->
+        <service
+            android:name=".subapps.Fidland.FidlandService"
             android:exported="false" />
 
     </application>

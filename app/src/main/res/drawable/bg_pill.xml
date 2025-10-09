@@ -1,0 +1,23 @@
+<?xml version="1.0" encoding="utf-8"?>
+<shape xmlns:android="http://schemas.android.com/apk/res/android"
+    android:shape="rectangle">
+
+    <!-- Fully black to merge with AMOLED background -->
+    <solid android:color="@color/black" />
+
+    <!-- Smooth corners (will blend with camera hole visually) -->
+    <corners android:radius="100dp" />
+
+    <!-- Optional soft shadow glow -->
+    <padding
+        android:left="1dp"
+        android:top="1dp"
+        android:right="1dp"
+        android:bottom="1dp" />
+
+    <!-- Optional subtle stroke for separation on light backgrounds -->
+    <stroke
+        android:width="0.5dp"
+        android:color="#222222" />
+
+</shape>
