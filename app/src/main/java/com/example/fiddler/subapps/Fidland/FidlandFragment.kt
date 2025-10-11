@@ -12,6 +12,9 @@ import android.view.ViewGroup
 import android.widget.*
 import androidx.fragment.app.Fragment
 import com.example.fiddler.R
+import android.app.Service
+import com.example.fiddler.subapps.Fidland.service.FidlandService
+import com.google.android.material.slider.Slider
 
 class FidlandFragment : Fragment() {
 
@@ -24,9 +27,9 @@ class FidlandFragment : Fragment() {
     private lateinit var cbQuickSettings: CheckBox
     private lateinit var inputRows: EditText
     private lateinit var inputColumns: EditText
-    private lateinit var sbAnimationSpeed: SeekBar
-    private lateinit var sbTransparency: SeekBar
-    private lateinit var sbCornerRadius: SeekBar
+    private lateinit var sbAnimationSpeed: Slider
+    private lateinit var sbTransparency: Slider
+    private lateinit var sbCornerRadius: Slider
 
     private val prefsName = "fidland_prefs"
 
@@ -89,9 +92,9 @@ class FidlandFragment : Fragment() {
         inputRows.setText(prefs.getInt("app_rows", 3).toString())
         inputColumns.setText(prefs.getInt("app_columns", 4).toString())
 
-        sbAnimationSpeed.progress = prefs.getInt("animation_speed", 50)
-        sbTransparency.progress = prefs.getInt("transparency", 80)
-        sbCornerRadius.progress = prefs.getInt("corner_radius", 40)
+        sbAnimationSpeed.value = prefs.getInt("animation_speed", 50).toFloat()
+        sbTransparency.value = prefs.getInt("transparency", 80).toFloat()
+        sbCornerRadius.value = prefs.getInt("corner_radius", 40).toFloat()
     }
 
     private fun addRealtimeChangeListeners() {
@@ -114,21 +117,17 @@ class FidlandFragment : Fragment() {
             }
         }
 
-        val seekBars = listOf(
+        val sliders = listOf(
             sbAnimationSpeed to "animation_speed",
             sbTransparency to "transparency",
             sbCornerRadius to "corner_radius"
         )
 
-        seekBars.forEach { (seekBar, key) ->
-            seekBar.setOnSeekBarChangeListener(object : SeekBar.OnSeekBarChangeListener {
-                override fun onProgressChanged(seekBar: SeekBar?, progress: Int, fromUser: Boolean) {
-                    editor.putInt(key, progress).apply()
-                    resetFidland()
-                }
-                override fun onStartTrackingTouch(seekBar: SeekBar?) {}
-                override fun onStopTrackingTouch(seekBar: SeekBar?) {}
-            })
+        sliders.forEach { (slider, key) ->
+            slider.addOnChangeListener { _, value, _ ->
+                editor.putInt(key, value.toInt()).apply()
+                resetFidland()
+            }
         }
 
         inputRows.addTextChangedListener(object : TextWatcher {

@@ -23,6 +23,7 @@ class PermissionsActivity : AppCompatActivity() {
     private val REQUEST_CODE_PERMISSIONS = 100
     private val REQUEST_IGNORE_BATTERY_OPTIMIZATIONS = 101
     private val REQUEST_OVERLAY_PERMISSION = 102
+    private val REQUEST_NOTIFICATION_LISTENER = 103
 
     private val prefs: SharedPreferences by lazy {
         getSharedPreferences("fiddler_prefs", MODE_PRIVATE)
@@ -114,6 +115,7 @@ class PermissionsActivity : AppCompatActivity() {
         when (requestCode) {
             REQUEST_IGNORE_BATTERY_OPTIMIZATIONS -> checkSAFSetup()
             REQUEST_OVERLAY_PERMISSION -> checkOverlayPermissionGranted()
+            REQUEST_NOTIFICATION_LISTENER -> checkNotificationListenerPermission()
         }
     }
 
@@ -217,7 +219,7 @@ class PermissionsActivity : AppCompatActivity() {
             val intent = Intent(Settings.ACTION_MANAGE_OVERLAY_PERMISSION, Uri.parse("package:$packageName"))
             startActivityForResult(intent, REQUEST_OVERLAY_PERMISSION)
         } else {
-            proceedToMain()
+            checkNotificationListenerPermission()
         }
     }
 
@@ -227,7 +229,29 @@ class PermissionsActivity : AppCompatActivity() {
         ) {
             Toast.makeText(this, "Overlay permission not granted. Some features may not work.", Toast.LENGTH_LONG).show()
         }
-        proceedToMain()
+        checkNotificationListenerPermission()
+    }
+
+    // ---- Notification listener permission ----
+    private fun checkNotificationListenerPermission() {
+        val enabledListeners = Settings.Secure.getString(
+            contentResolver,
+            "enabled_notification_listeners"
+        ) ?: ""
+
+        val packageNameInListeners = enabledListeners.split(":").any { it.contains(packageName) }
+        if (!packageNameInListeners) {
+            Toast.makeText(
+                this,
+                "Grant notification access to control media and read notifications.",
+                Toast.LENGTH_LONG
+            ).show()
+
+            val intent = Intent(Settings.ACTION_NOTIFICATION_LISTENER_SETTINGS)
+            startActivityForResult(intent, REQUEST_NOTIFICATION_LISTENER)
+        } else {
+            proceedToMain()
+        }
     }
 
     private fun proceedToMain() {

@@ -1,5 +1,5 @@
-<?xml version="1.0" encoding="utf-8"?>
-<ScrollView xmlns:android="http://schemas.android.com/apk/res/android"
+<ScrollView
+    xmlns:android="http://schemas.android.com/apk/res/android"
     xmlns:app="http://schemas.android.com/apk/res-auto"
     android:layout_width="match_parent"
     android:layout_height="match_parent"
@@ -41,7 +41,7 @@
             android:layout_height="32dp" />
 
         <!-- Enable switch -->
-        <CheckBox
+        <com.google.android.material.checkbox.MaterialCheckBox
             android:id="@+id/switch_enable"
             android:layout_width="wrap_content"
             android:layout_height="wrap_content"
@@ -74,32 +74,35 @@
             android:textSize="20sp"
             android:text="Dynamic configurations for all status bar elements — network, equalizer, and indicators." />
 
-        <CheckBox
+        <com.google.android.material.checkbox.MaterialCheckBox
             android:id="@+id/cb_network_traffic"
             android:layout_width="wrap_content"
             android:layout_height="wrap_content"
             android:text="Network Traffic Module"
             android:fontFamily="@font/font_handwriting"
             android:textColor="?attr/colorOnSurface"
-            app:buttonTint="@color/checkbox_color" />
+            android:textSize="20sp"
+            android:buttonTint="@color/checkbox_color" />
 
-        <CheckBox
+        <com.google.android.material.checkbox.MaterialCheckBox
             android:id="@+id/cb_equalizer_info"
             android:layout_width="wrap_content"
             android:layout_height="wrap_content"
-            android:text="Equalizer / Media Info"
             android:fontFamily="@font/font_handwriting"
             android:textColor="?attr/colorOnSurface"
-            app:buttonTint="@color/checkbox_color" />
+            android:textSize="20sp"
+            android:buttonTint="@color/checkbox_color"
+            android:text="Equalizer / Media Info" />
 
-        <CheckBox
+        <com.google.android.material.checkbox.MaterialCheckBox
             android:id="@+id/cb_notifications"
             android:layout_width="wrap_content"
             android:layout_height="wrap_content"
             android:text="Notifications Display"
             android:fontFamily="@font/font_handwriting"
             android:textColor="?attr/colorOnSurface"
-            app:buttonTint="@color/checkbox_color" />
+            android:textSize="20sp"
+            android:buttonTint="@color/checkbox_color" />
 
         <Space
             android:layout_width="match_parent"
@@ -124,119 +127,25 @@
             android:textSize="20sp"
             android:text="Integrate media apps like Spotify or YouTube Music. Quick player actions, seek bar, and queue access." />
 
-        <CheckBox
+        <com.google.android.material.checkbox.MaterialCheckBox
             android:id="@+id/cb_music_player"
             android:layout_width="wrap_content"
             android:layout_height="wrap_content"
             android:text="Enable Music Player Controls"
             android:fontFamily="@font/font_handwriting"
             android:textColor="?attr/colorOnSurface"
-            app:buttonTint="@color/checkbox_color" />
+            android:textSize="20sp"
+            android:buttonTint="@color/checkbox_color" />
 
-        <CheckBox
+        <com.google.android.material.checkbox.MaterialCheckBox
             android:id="@+id/cb_music_queue"
             android:layout_width="wrap_content"
             android:layout_height="wrap_content"
             android:text="Enable Music Queue Page"
             android:fontFamily="@font/font_handwriting"
             android:textColor="?attr/colorOnSurface"
-            app:buttonTint="@color/checkbox_color" />
-
-        <Space
-            android:layout_width="match_parent"
-            android:layout_height="60dp" />
-
-        <!-- Applications Page -->
-        <TextView
-            android:layout_width="wrap_content"
-            android:layout_height="wrap_content"
-            android:fontFamily="@font/font_body"
-            android:textColor="?attr/colorOnSurface"
-            android:text="Applications Page"
-            android:textSize="28sp"
-            android:paddingBottom="8dp" />
-
-        <TextView
-            android:id="@+id/tv_addapps"
-            android:layout_width="match_parent"
-            android:layout_height="wrap_content"
-            android:fontFamily="@font/font_handwriting"
-            android:textColor="?attr/colorOnSurface"
             android:textSize="20sp"
-            android:text="Configure your app launcher grid layout and pinned apps." />
-
-        <LinearLayout
-            android:orientation="horizontal"
-            android:layout_width="wrap_content"
-            android:layout_height="wrap_content"
-            android:paddingTop="8dp">
-
-            <TextView
-                android:layout_width="wrap_content"
-                android:layout_height="wrap_content"
-                android:text="Rows:"
-                android:textColor="?attr/colorOnSurface"
-                android:fontFamily="@font/font_handwriting"
-                android:padding="4dp" />
-
-            <EditText
-                android:id="@+id/input_rows"
-                android:layout_width="48dp"
-                android:layout_height="wrap_content"
-                android:inputType="number"
-                android:text="3"
-                android:backgroundTint="?attr/colorOutline"
-                android:textColor="?attr/colorOnSurface" />
-
-            <TextView
-                android:layout_width="wrap_content"
-                android:layout_height="wrap_content"
-                android:text="Columns:"
-                android:textColor="?attr/colorOnSurface"
-                android:fontFamily="@font/font_handwriting"
-                android:padding="4dp" />
-
-            <EditText
-                android:id="@+id/input_columns"
-                android:layout_width="48dp"
-                android:layout_height="wrap_content"
-                android:inputType="number"
-                android:text="4"
-                android:backgroundTint="?attr/colorOutline"
-                android:textColor="?attr/colorOnSurface" />
-        </LinearLayout>
-
-        <Space
-            android:layout_width="match_parent"
-            android:layout_height="60dp" />
-
-        <!-- Quick Settings -->
-        <TextView
-            android:layout_width="wrap_content"
-            android:layout_height="wrap_content"
-            android:fontFamily="@font/font_body"
-            android:textColor="?attr/colorOnSurface"
-            android:text="Quick Settings"
-            android:textSize="28sp"
-            android:paddingBottom="8dp" />
-
-        <TextView
-            android:id="@+id/tv_qckset"
-            android:layout_width="match_parent"
-            android:layout_height="wrap_content"
-            android:fontFamily="@font/font_handwriting"
-            android:textColor="?attr/colorOnSurface"
-            android:textSize="20sp"
-            android:text="Configure your quick setting tiles and toggles. Add, remove, or rearrange them from here." />
-
-        <CheckBox
-            android:id="@+id/cb_quick_settings"
-            android:layout_width="wrap_content"
-            android:layout_height="wrap_content"
-            android:text="Enable Quick Setting Page"
-            android:fontFamily="@font/font_handwriting"
-            android:textColor="?attr/colorOnSurface"
-            app:buttonTint="@color/checkbox_color" />
+            android:buttonTint="@color/checkbox_color" />
 
         <Space
             android:layout_width="match_parent"
@@ -268,16 +177,19 @@
             android:fontFamily="@font/font_handwriting"
             android:paddingTop="8dp" />
 
-        <!-- Custom styled SeekBar for Animation Speed -->
-        <SeekBar
+        <com.google.android.material.slider.Slider
             android:id="@+id/sb_animation_speed"
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
-            android:max="100"
-            android:progress="50"
-            android:progressTint="#353535"
-            android:thumbTint="@color/black"
-            android:progressBackgroundTint="@color/black_overlay" />
+            style="@style/Widget.Material3.Slider"
+            android:valueFrom="0"
+            android:valueTo="100"
+            android:value="40"
+            app:trackHeight="3dp"
+            app:thumbRadius="15dp"
+            app:trackColor="#66ADADAD"
+            app:trackColorActive="#2E2E2E"
+            app:thumbColor="@color/black" />
 
         <TextView
             android:layout_width="wrap_content"
@@ -287,15 +199,19 @@
             android:fontFamily="@font/font_handwriting"
             android:paddingTop="8dp" />
 
-        <SeekBar
+        <com.google.android.material.slider.Slider
             android:id="@+id/sb_transparency"
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
-            android:max="100"
-            android:progressTint="#353535"
-            android:thumbTint="@color/black"
-            android:progressBackgroundTint="@color/black_overlay"
-            android:progress="80" />
+            style="@style/Widget.Material3.Slider"
+            android:valueFrom="0"
+            android:valueTo="100"
+            android:value="50"
+            app:trackHeight="3dp"
+            app:thumbRadius="15dp"
+            app:trackColor="#66ADADAD"
+            app:trackColorActive="#2E2E2E"
+            app:thumbColor="@color/black" />
 
         <TextView
             android:layout_width="wrap_content"
@@ -305,20 +221,61 @@
             android:fontFamily="@font/font_handwriting"
             android:paddingTop="8dp" />
 
-        <SeekBar
+        <com.google.android.material.slider.Slider
             android:id="@+id/sb_corner_radius"
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
-            android:progressTint="#353535"
-            android:thumbTint="@color/black"
-            android:progressBackgroundTint="@color/black_overlay"
-            android:max="100"
-            android:progress="40" />
+            style="@style/Widget.Material3.Slider"
+            android:valueFrom="0"
+            android:valueTo="100"
+            android:value="60"
+            app:trackHeight="3dp"
+            app:thumbRadius="15dp"
+            app:trackColor="#66ADADAD"
+            app:trackColorActive="#2E2E2E"
+            app:thumbColor="@color/black" />
 
         <Space
             android:layout_width="match_parent"
             android:layout_height="60dp" />
 
+        <!-- Quick Settings Checkbox -->
+        <com.google.android.material.checkbox.MaterialCheckBox
+            android:id="@+id/cb_quick_settings"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:text="Quick Settings Module"
+            android:fontFamily="@font/font_handwriting"
+            android:textColor="?attr/colorOnSurface"
+            app:buttonTint="?attr/colorPrimary" />
+
+        <!-- Input rows -->
+        <com.google.android.material.textfield.TextInputLayout
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:hint="Rows">
+            <com.google.android.material.textfield.TextInputEditText
+                android:id="@+id/input_rows"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:inputType="number"/>
+        </com.google.android.material.textfield.TextInputLayout>
+
+        <!-- Input columns -->
+        <com.google.android.material.textfield.TextInputLayout
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:hint="Columns"/>
+
+        <com.google.android.material.textfield.TextInputEditText
+            android:id="@+id/input_columns"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:inputType="number"/>
+
+        <Space
+            android:layout_width="match_parent"
+            android:layout_height="60dp" />
 
     </LinearLayout>
 </ScrollView>

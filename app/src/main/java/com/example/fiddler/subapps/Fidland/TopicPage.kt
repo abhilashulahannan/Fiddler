@@ -7,4 +7,5 @@ abstract class TopicPage(protected val context: Context) {
     abstract fun getView(): View
     open fun onSwipeLeft() {}
     open fun onSwipeRight() {}
+    open fun onDestroy() {}
 }

@@ -1,4 +1,4 @@
-package com.example.fiddler.subapps.Fidland
+package com.example.fiddler.subapps.Fidland.phs2
 
 import android.app.Service
 import android.content.Intent
@@ -10,13 +10,11 @@ import android.text.Spanned
 import android.text.style.RelativeSizeSpan
 import android.util.TypedValue
 import android.view.Gravity
-import android.view.LayoutInflater
 import android.view.ViewGroup
 import android.widget.LinearLayout
 import android.widget.TextView
 import androidx.core.content.ContextCompat
 import android.graphics.Typeface
-import com.example.fiddler.R
 import android.view.WindowManager
 import android.view.WindowManager.LayoutParams
 
@@ -63,16 +61,16 @@ class NetSpeedFidlandService : Service() {
         overlayView?.addView(txtUpload)
         overlayView?.addView(txtDownload)
 
-        val params = WindowManager.LayoutParams(
+        val params = LayoutParams(
             dpToPx(40),
             dpToPx(25),
             if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O)
-                WindowManager.LayoutParams.TYPE_APPLICATION_OVERLAY
+                LayoutParams.TYPE_APPLICATION_OVERLAY
             else
-                WindowManager.LayoutParams.TYPE_PHONE,
-            WindowManager.LayoutParams.FLAG_NOT_FOCUSABLE or
-                    WindowManager.LayoutParams.FLAG_LAYOUT_NO_LIMITS or
-                    WindowManager.LayoutParams.FLAG_LAYOUT_IN_SCREEN,
+                LayoutParams.TYPE_PHONE,
+            LayoutParams.FLAG_NOT_FOCUSABLE or
+                    LayoutParams.FLAG_LAYOUT_NO_LIMITS or
+                    LayoutParams.FLAG_LAYOUT_IN_SCREEN,
             PixelFormat.TRANSLUCENT
         )
 

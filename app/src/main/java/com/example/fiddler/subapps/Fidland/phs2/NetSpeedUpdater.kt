@@ -1,5 +1,6 @@
-package com.example.fiddler.subapps.Fidland
+package com.example.fiddler.subapps.Fidland.phs2
 
+import android.R
 import android.content.Context
 import android.net.TrafficStats
 import android.os.Handler
@@ -34,8 +35,8 @@ class NetSpeedUpdater(
         // Ensure TextViews are visible
         txtUpload.visibility = View.VISIBLE
         txtDownload.visibility = View.VISIBLE
-        txtUpload.setTextColor(context.getColor(android.R.color.white))
-        txtDownload.setTextColor(context.getColor(android.R.color.white))
+        txtUpload.setTextColor(context.getColor(R.color.white))
+        txtDownload.setTextColor(context.getColor(R.color.white))
 
         lastRx = TrafficStats.getTotalRxBytes()
         lastTx = TrafficStats.getTotalTxBytes()

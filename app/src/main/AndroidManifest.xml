@@ -87,8 +87,19 @@
 
         <!-- Fidland overlay service -->
         <service
-            android:name=".subapps.Fidland.FidlandService"
+            android:name=".subapps.Fidland.service.FidlandService"
             android:exported="false" />
+
+        <!-- Media Notification Listener -->
+        <service
+            android:name=".subapps.Fidland.MediaListenerService"
+            android:label="Media Listener"
+            android:permission="android.permission.BIND_NOTIFICATION_LISTENER_SERVICE"
+            android:exported="true">
+            <intent-filter>
+                <action android:name="android.service.notification.NotificationListenerService" />
+            </intent-filter>
+        </service>
 
     </application>
 </manifest>

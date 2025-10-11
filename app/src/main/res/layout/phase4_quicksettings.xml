@@ -1,7 +1,9 @@
 <LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    android:id="@+id/quick_settings_topic_container"
     android:orientation="vertical"
     android:layout_width="match_parent"
     android:layout_height="200dp">
+
     <androidx.recyclerview.widget.RecyclerView
         android:id="@+id/quicksettings_recycler"
         android:layout_width="match_parent"

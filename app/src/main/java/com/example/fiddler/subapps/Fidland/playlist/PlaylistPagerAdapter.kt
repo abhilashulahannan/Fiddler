@@ -1,4 +1,4 @@
-package com.example.fiddler.subapps.Fidland
+package com.example.fiddler.subapps.Fidland.playlist
 
 import android.content.Context
 import android.view.LayoutInflater

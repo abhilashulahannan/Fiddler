@@ -1,7 +1,9 @@
 <LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    android:id="@+id/playlist_topic_container"
     android:orientation="vertical"
     android:layout_width="match_parent"
     android:layout_height="200dp">
+
     <androidx.viewpager2.widget.ViewPager2
         android:id="@+id/playlist_viewpager"
         android:layout_width="match_parent"

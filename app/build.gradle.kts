@@ -48,5 +48,9 @@ dependencies {
     testImplementation(libs.junit)
     androidTestImplementation(libs.androidx.junit)
     androidTestImplementation(libs.androidx.espresso.core)
+    implementation("androidx.core:core-ktx:1.12.0")
+    implementation("androidx.viewpager2:viewpager2:1.1.0")
     implementation("androidx.documentfile:documentfile:1.1.0")
+    implementation("com.google.android.material:material:1.11.0")
+    implementation("androidx.localbroadcastmanager:localbroadcastmanager:1.1.0")
 }
