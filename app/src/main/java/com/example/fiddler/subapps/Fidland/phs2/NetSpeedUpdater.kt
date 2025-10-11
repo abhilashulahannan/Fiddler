@@ -1,128 +1,70 @@
 package com.example.fiddler.subapps.Fidland.phs2
 
-import android.R
-import android.content.Context
+import androidx.compose.foundation.layout.*
+import androidx.compose.material3.Text
+import androidx.compose.runtime.*
+import androidx.compose.ui.Modifier
+import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.sp
 import android.net.TrafficStats
-import android.os.Handler
-import android.os.Looper
-import android.util.TypedValue
-import android.view.View
-import android.widget.LinearLayout
-import android.widget.TextView
-import android.graphics.Typeface
-import android.text.SpannableString
-import android.text.Spanned
-import android.text.style.RelativeSizeSpan
+import kotlinx.coroutines.delay
 
-class NetSpeedUpdater(
-    private val context: Context,
-    private val txtUpload: TextView,
-    private val txtDownload: TextView,
-    private val leftSegment: LinearLayout,
-    private val overlayView: View
-) {
+@Composable
+fun NetSpeedDisplay() {
+    var lastRx by remember { mutableStateOf(TrafficStats.getTotalRxBytes()) }
+    var lastTx by remember { mutableStateOf(TrafficStats.getTotalTxBytes()) }
+    var lastTime by remember { mutableStateOf(System.currentTimeMillis()) }
 
-    private val handler = Handler(Looper.getMainLooper())
-    private var lastRx = 0L
-    private var lastTx = 0L
-    private var lastTime = 0L
-    private var isRunning = false
+    var rxSpeed by remember { mutableStateOf(0L) }
+    var txSpeed by remember { mutableStateOf(0L) }
 
-    fun start() {
-        if (isRunning) return
-        isRunning = true
+    LaunchedEffect(Unit) {
+        while (true) {
+            delay(1000)
+            val nowRx = TrafficStats.getTotalRxBytes()
+            val nowTx = TrafficStats.getTotalTxBytes()
+            val nowTime = System.currentTimeMillis()
 
-        // Ensure TextViews are visible
-        txtUpload.visibility = View.VISIBLE
-        txtDownload.visibility = View.VISIBLE
-        txtUpload.setTextColor(context.getColor(R.color.white))
-        txtDownload.setTextColor(context.getColor(R.color.white))
+            rxSpeed = ((nowRx - lastRx) * 1000 / (nowTime - lastTime)).coerceAtLeast(0L)
+            txSpeed = ((nowTx - lastTx) * 1000 / (nowTime - lastTime)).coerceAtLeast(0L)
 
-        lastRx = TrafficStats.getTotalRxBytes()
-        lastTx = TrafficStats.getTotalTxBytes()
-        lastTime = System.currentTimeMillis()
-
-        // Ensure layout is ready
-        overlayView.post { updateLoop() }
-    }
-
-    fun stop() {
-        isRunning = false
-        handler.removeCallbacksAndMessages(null)
-        txtUpload.visibility = View.GONE
-        txtDownload.visibility = View.GONE
-    }
-
-    private fun updateLoop() {
-        handler.post(object : Runnable {
-            override fun run() {
-                if (!isRunning) return
-
-                val nowRx = TrafficStats.getTotalRxBytes()
-                val nowTx = TrafficStats.getTotalTxBytes()
-                val nowTime = System.currentTimeMillis()
-
-                val rxSpeed = ((nowRx - lastRx) * 1000 / (nowTime - lastTime)).coerceAtLeast(0L)
-                val txSpeed = ((nowTx - lastTx) * 1000 / (nowTime - lastTime)).coerceAtLeast(0L)
-
-                lastRx = nowRx
-                lastTx = nowTx
-                lastTime = nowTime
-
-                txtDownload.text = formatSpeed(rxSpeed, "↓")
-                txtUpload.text = formatSpeed(txSpeed, "↑")
-
-                adjustLayoutWeights(rxSpeed, txSpeed)
-
-                handler.postDelayed(this, 1000)
-            }
-        })
-    }
-
-    private fun adjustLayoutWeights(rxSpeed: Long, txSpeed: Long) {
-        // Decide stronger speed for bold + weight
-        val rxStronger = rxSpeed >= txSpeed
-        val dlWeight = if (rxStronger) 0.6f else 0.4f
-        val ulWeight = 1f - dlWeight
-
-        // Apply weights safely
-        (txtDownload.layoutParams as? LinearLayout.LayoutParams)?.let {
-            it.weight = dlWeight
-            txtDownload.layoutParams = it
+            lastRx = nowRx
+            lastTx = nowTx
+            lastTime = nowTime
         }
-        (txtUpload.layoutParams as? LinearLayout.LayoutParams)?.let {
-            it.weight = ulWeight
-            txtUpload.layoutParams = it
-        }
-
-        // Bold the stronger
-        txtDownload.setTypeface(null, if (rxStronger) Typeface.BOLD else Typeface.NORMAL)
-        txtUpload.setTypeface(null, if (!rxStronger) Typeface.BOLD else Typeface.NORMAL)
-
-        // Adjust font size dynamically
-        txtDownload.setTextSize(TypedValue.COMPLEX_UNIT_DIP, if (rxStronger) 10f else 8f)
-        txtUpload.setTextSize(TypedValue.COMPLEX_UNIT_DIP, if (!rxStronger) 10f else 8f)
     }
 
-    private fun formatSpeed(speedBytes: Long, arrow: String): SpannableString {
-        var value = speedBytes / 1024.0
-        var unit = "KB/s"
+    val rxStronger = rxSpeed >= txSpeed
+    val dlWeight = if (rxStronger) 0.6f else 0.4f
+    val ulWeight = 1f - dlWeight
 
-        if (value >= 1024) {
-            value /= 1024.0
-            unit = "MB/s"
-        }
-        if (value >= 1024) {
-            value /= 1024.0
-            unit = "GB/s"
-        }
-
-        val displayValue = if (value < 10) String.format("%.1f", value) else String.format("%.0f", value)
-        val text = "$arrow$displayValue $unit"
-
-        val spannable = SpannableString(text)
-        val start = text.indexOf(unit)
-        spannable.setSpan(RelativeSizeSpan(0.5f), start, text.length, Spanned.SPAN_EXCLUSIVE_EXCLUSIVE)
-        return spannable
+    Row(
+        modifier = Modifier
+            .height(25.dp)
+            .wrapContentWidth()
+    ) {
+        Text(
+            text = formatSpeed(rxSpeed, "↓"),
+            fontSize = if (rxStronger) 10.sp else 8.sp,
+            fontWeight = if (rxStronger) FontWeight.Bold else FontWeight.Normal,
+            modifier = Modifier.weight(dlWeight).fillMaxHeight()
+        )
+        Text(
+            text = formatSpeed(txSpeed, "↑"),
+            fontSize = if (!rxStronger) 10.sp else 8.sp,
+            fontWeight = if (!rxStronger) FontWeight.Bold else FontWeight.Normal,
+            modifier = Modifier.weight(ulWeight).fillMaxHeight()
+        )
     }
+}
+
+private fun formatSpeed(speedBytes: Long, arrow: String): String {
+    var value = speedBytes / 1024.0
+    var unit = "KB/s"
+    if (value >= 1024) { value /= 1024; unit = "MB/s" }
+    if (value >= 1024) { value /= 1024; unit = "GB/s" }
+
+    val displayValue = if (value < 10) "%.1f".format(value) else "%.0f".format(value)
+    return "$arrow$displayValue $unit"
 }

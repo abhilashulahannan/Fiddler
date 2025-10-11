@@ -9,21 +9,28 @@ import android.os.Build
 import android.os.Bundle
 import android.os.PowerManager
 import android.provider.Settings
-import android.widget.TextView
 import android.widget.Toast
+import androidx.activity.ComponentActivity
+import androidx.activity.compose.setContent
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.appcompat.app.AlertDialog
-import androidx.appcompat.app.AppCompatActivity
-import androidx.core.app.ActivityCompat
+import androidx.compose.foundation.background
+import androidx.compose.foundation.layout.*
+import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.material3.*
+import androidx.compose.runtime.Composable
+import androidx.compose.ui.Alignment
+import androidx.compose.ui.Modifier
+import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.text.font.Font
+import androidx.compose.ui.text.font.FontFamily
+import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.sp
 import androidx.core.content.ContextCompat
 import androidx.documentfile.provider.DocumentFile
 
-class PermissionsActivity : AppCompatActivity() {
-
-    private val REQUEST_CODE_PERMISSIONS = 100
-    private val REQUEST_IGNORE_BATTERY_OPTIMIZATIONS = 101
-    private val REQUEST_OVERLAY_PERMISSION = 102
-    private val REQUEST_NOTIFICATION_LISTENER = 103
+class PermissionsActivity : ComponentActivity() {
 
     private val prefs: SharedPreferences by lazy {
         getSharedPreferences("fiddler_prefs", MODE_PRIVATE)
@@ -47,9 +54,60 @@ class PermissionsActivity : AppCompatActivity() {
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
-        setContentView(R.layout.activity_permissions)
+
         checkAndRequestPermissions()
+
+        setContent {
+            PermissionScreen {
+                // Button click triggers SAF or next step
+                launchSAF()
+            }
+        }
     }
+
+    @Composable
+    fun PermissionScreen(onGrantClick: () -> Unit) {
+        val fontBody = FontFamily(Font(R.font.font_body))
+        val fontHead = FontFamily(Font(R.font.font_head))
+
+        Column(
+            modifier = Modifier
+                .fillMaxSize()
+                .background(Color.White)
+                .padding(32.dp),
+            verticalArrangement = Arrangement.Center,
+            horizontalAlignment = Alignment.CenterHorizontally
+        ) {
+            Text("Permission", fontSize = 54.sp, color = Color.Black, fontFamily = fontBody)
+            Text("and", fontSize = 54.sp, color = Color.Black, fontFamily = fontBody)
+            Text("Directories", fontSize = 54.sp, color = Color.Black, fontFamily = fontBody)
+
+            Spacer(modifier = Modifier.height(16.dp))
+
+            Text(
+                "Fiddler needs some permissions to run smoothly. It will create directories at required locations now, to mitigate annoyance later.",
+                fontSize = 18.sp,
+                color = Color.Black,
+                fontFamily = fontBody,
+                modifier = Modifier.padding(16.dp),
+            )
+
+            Spacer(modifier = Modifier.height(50.dp))
+
+            Button(
+                onClick = { onGrantClick() },
+                shape = RoundedCornerShape(12.dp),
+                colors = ButtonDefaults.buttonColors(
+                    containerColor = Color.White,
+                    contentColor = Color.Black
+                ),
+                border = androidx.compose.foundation.BorderStroke(2.dp, Color.Black) // <-- fixed
+            ) {
+                Text("Grant Permissions", fontSize = 16.sp, fontFamily = fontHead)
+            }
+        }
+    }
+
 
     private fun checkAndRequestPermissions() {
         val requiredPermissions = mutableListOf(
@@ -79,96 +137,46 @@ class PermissionsActivity : AppCompatActivity() {
         if (missingPermissions.isEmpty()) {
             requestBatteryOptimizationExemption()
         } else {
-            ActivityCompat.requestPermissions(
-                this,
-                missingPermissions.toTypedArray(),
-                REQUEST_CODE_PERMISSIONS
-            )
-        }
-    }
-
-    override fun onRequestPermissionsResult(
-        requestCode: Int, permissions: Array<out String>, grantResults: IntArray
-    ) {
-        super.onRequestPermissionsResult(requestCode, permissions, grantResults)
-        if (requestCode == REQUEST_CODE_PERMISSIONS) {
-            val allGranted = grantResults.all { it == PackageManager.PERMISSION_GRANTED }
-            if (allGranted) requestBatteryOptimizationExemption()
-            else checkAndRequestPermissions()
+            requestPermissions(missingPermissions.toTypedArray(), 100)
         }
     }
 
     private fun requestBatteryOptimizationExemption() {
         val pm = getSystemService(POWER_SERVICE) as PowerManager
         if (!pm.isIgnoringBatteryOptimizations(packageName)) {
-            val intent = Intent(Settings.ACTION_REQUEST_IGNORE_BATTERY_OPTIMIZATIONS).apply {
-                data = Uri.parse("package:$packageName")
-            }
-            startActivityForResult(intent, REQUEST_IGNORE_BATTERY_OPTIMIZATIONS)
+            val intent = Intent(Settings.ACTION_REQUEST_IGNORE_BATTERY_OPTIMIZATIONS)
+            intent.data = Uri.parse("package:$packageName")
+            startActivity(intent)
         } else {
             checkSAFSetup()
         }
     }
 
-    override fun onActivityResult(requestCode: Int, resultCode: Int, data: Intent?) {
-        super.onActivityResult(requestCode, resultCode, data)
-        when (requestCode) {
-            REQUEST_IGNORE_BATTERY_OPTIMIZATIONS -> checkSAFSetup()
-            REQUEST_OVERLAY_PERMISSION -> checkOverlayPermissionGranted()
-            REQUEST_NOTIFICATION_LISTENER -> checkNotificationListenerPermission()
-        }
-    }
-
+    // Added checkSAFSetup to fix unresolved reference
     private fun checkSAFSetup() {
         val uriString = prefs.getString("saf_uri", null)
-        val safConfigured = uriString?.let { savedUri ->
-            val treeUri = Uri.parse(savedUri)
-            contentResolver.persistedUriPermissions.any {
-                it.uri == treeUri && it.isWritePermission
-            }
-        } ?: false
-
-        if (safConfigured) {
+        if (uriString.isNullOrEmpty()) {
+            promptSAFExplanation()
+        } else {
             setupFoldersAndPlaceholder()
             checkWriteSettingsPermission()
-        } else {
-            promptSAFExplanation()
         }
     }
 
     private fun promptSAFExplanation() {
-        val dialog = AlertDialog.Builder(this, R.style.WhiteDialogTheme)
+        val dialog = AlertDialog.Builder(this)
             .setTitle("Setup Audio Folder")
             .setMessage(
-                "For various app functions and ease of use, the app needs access to a folder in DCIM called 'Fiddler'.\n\n" +
-                        "This is a one-time setup using the system file picker. " +
-                        "After you select the folder, the app can only read/write files in that folder safely."
+                "For various app functions and ease of use, the app needs access to a folder in DCIM called 'Fiddler'. " +
+                        "This is a one-time setup using the system file picker. After you select the folder, the app can only read/write files in that folder safely."
             )
             .setCancelable(false)
             .setPositiveButton("Continue") { _, _ -> launchSAF() }
-            .setNegativeButton("Cancel") { dialogInterface, _ ->
-                dialogInterface.dismiss()
-                Toast.makeText(
-                    this,
-                    "App will not function without folder access.",
-                    Toast.LENGTH_LONG
-                ).show()
+            .setNegativeButton("Cancel") { d, _ ->
+                d.dismiss()
+                Toast.makeText(this, "App will not function without folder access.", Toast.LENGTH_LONG).show()
             }
             .create()
-
-        dialog.setOnShowListener {
-            dialog.findViewById<TextView>(android.R.id.message)?.apply {
-                setTextColor(resources.getColor(android.R.color.black))
-                typeface = resources.getFont(R.font.font_handwriting)
-            }
-            dialog.findViewById<TextView>(
-                resources.getIdentifier("alertTitle", "id", "android")
-            )?.apply {
-                setTextColor(resources.getColor(android.R.color.black))
-                typeface = resources.getFont(R.font.font_body)
-            }
-        }
-
         dialog.show()
     }
 
@@ -178,33 +186,22 @@ class PermissionsActivity : AppCompatActivity() {
 
     private fun setupFoldersAndPlaceholder() {
         try {
-            val uriString = prefs.getString("saf_uri", null)
-            if (uriString == null) {
-                Toast.makeText(this, "SAF folder not selected.", Toast.LENGTH_LONG).show()
-                return
-            }
-
+            val uriString = prefs.getString("saf_uri", null) ?: return
             val treeUri = Uri.parse(uriString)
             val rootDoc = DocumentFile.fromTreeUri(this, treeUri) ?: return
-
             val audioFolder = rootDoc.findFile("Audio") ?: rootDoc.createDirectory("Audio")
             audioFolder?.findFile("Fidtones") ?: audioFolder?.createDirectory("Fidtones")
             audioFolder?.findFile("fiddler_ringtone.ogg")
                 ?: audioFolder?.createFile("audio/ogg", "fiddler_ringtone.ogg")
-
-            Toast.makeText(this, "Folders and placeholder ready!", Toast.LENGTH_LONG).show()
         } catch (e: Exception) {
             e.printStackTrace()
-            Toast.makeText(this, "Failed to setup folders.", Toast.LENGTH_LONG).show()
         }
     }
 
     private fun checkWriteSettingsPermission() {
         if (!Settings.System.canWrite(this)) {
-            Toast.makeText(this, "Grant permission to change system ringtone", Toast.LENGTH_LONG).show()
-            val intent = Intent(Settings.ACTION_MANAGE_WRITE_SETTINGS).apply {
-                data = Uri.parse("package:$packageName")
-            }
+            val intent = Intent(Settings.ACTION_MANAGE_WRITE_SETTINGS)
+            intent.data = Uri.parse("package:$packageName")
             startActivity(intent)
         } else {
             checkOverlayPermission()
@@ -212,43 +209,19 @@ class PermissionsActivity : AppCompatActivity() {
     }
 
     private fun checkOverlayPermission() {
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M &&
-            !Settings.canDrawOverlays(this)
-        ) {
-            Toast.makeText(this, "Grant overlay permission for network speed indicator", Toast.LENGTH_LONG).show()
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M && !Settings.canDrawOverlays(this)) {
             val intent = Intent(Settings.ACTION_MANAGE_OVERLAY_PERMISSION, Uri.parse("package:$packageName"))
-            startActivityForResult(intent, REQUEST_OVERLAY_PERMISSION)
+            startActivity(intent)
         } else {
             checkNotificationListenerPermission()
         }
     }
 
-    private fun checkOverlayPermissionGranted() {
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M &&
-            !Settings.canDrawOverlays(this)
-        ) {
-            Toast.makeText(this, "Overlay permission not granted. Some features may not work.", Toast.LENGTH_LONG).show()
-        }
-        checkNotificationListenerPermission()
-    }
-
-    // ---- Notification listener permission ----
     private fun checkNotificationListenerPermission() {
-        val enabledListeners = Settings.Secure.getString(
-            contentResolver,
-            "enabled_notification_listeners"
-        ) ?: ""
-
-        val packageNameInListeners = enabledListeners.split(":").any { it.contains(packageName) }
-        if (!packageNameInListeners) {
-            Toast.makeText(
-                this,
-                "Grant notification access to control media and read notifications.",
-                Toast.LENGTH_LONG
-            ).show()
-
-            val intent = Intent(Settings.ACTION_NOTIFICATION_LISTENER_SETTINGS)
-            startActivityForResult(intent, REQUEST_NOTIFICATION_LISTENER)
+        val enabledListeners = Settings.Secure.getString(contentResolver, "enabled_notification_listeners") ?: ""
+        val hasPermission = enabledListeners.split(":").any { it.contains(packageName) }
+        if (!hasPermission) {
+            startActivity(Intent(Settings.ACTION_NOTIFICATION_LISTENER_SETTINGS))
         } else {
             proceedToMain()
         }

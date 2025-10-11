@@ -5,8 +5,9 @@ import android.os.Handler
 import android.os.Looper
 
 /**
- * Listens to YTMusic playback updates.
- * Note: limited to periodic polling; no official API available.
+ * Listens to YouTube Music playback updates.
+ * Currently, this is a placeholder implementation using periodic polling.
+ * No official public API exists for YTMusic playback info.
  */
 class YTMusicListener(
     private val context: Context,
@@ -14,26 +15,32 @@ class YTMusicListener(
 ) {
 
     private val handler = Handler(Looper.getMainLooper())
-    private val updateInterval = 2000L // 2 seconds
+    private val updateInterval = 2000L // Poll every 2 seconds
 
-    private var running = false
+    private var isRunning = false
 
+    /**
+     * Start periodic polling
+     */
     fun start() {
-        running = true
+        if (isRunning) return
+        isRunning = true
         handler.post(updateRunnable)
     }
 
+    /**
+     * Stop polling
+     */
     fun stop() {
-        running = false
+        isRunning = false
         handler.removeCallbacks(updateRunnable)
     }
 
     private val updateRunnable = object : Runnable {
         override fun run() {
-            if (!running) return
+            if (!isRunning) return
 
-            // TODO: Implement actual YTMusic track fetching if possible
-            // For now, we send a placeholder track
+            // TODO: Replace with actual YTMusic track fetching if possible
             val track = MusicApp(
                 appName = "YouTube Music",
                 appPackage = MusicAppController.YTMUSIC_PACKAGE,

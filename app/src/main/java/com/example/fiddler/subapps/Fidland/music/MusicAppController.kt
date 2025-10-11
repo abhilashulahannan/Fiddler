@@ -6,8 +6,8 @@ import android.view.KeyEvent
 import android.widget.Toast
 
 /**
- * Handles playback commands for supported music apps using broadcast/key events.
- * Fetches track info via MediaListenerService updates stored in MusicAppsRepository.
+ * Handles playback commands for supported music apps using MEDIA_BUTTON broadcast events.
+ * Fetches track info via MusicAppsRepository updates.
  */
 class MusicAppController(private val context: Context) {
 
@@ -38,7 +38,7 @@ class MusicAppController(private val context: Context) {
     }
 
     /**
-     * Seek to position (in ms) — not supported for non-system apps
+     * Seek to a position in milliseconds (not supported in non-system mode)
      */
     fun seekTo(app: MusicApp, positionMs: Int) {
         Toast.makeText(context, "Seek not supported in non-system mode", Toast.LENGTH_SHORT).show()
@@ -55,7 +55,7 @@ class MusicAppController(private val context: Context) {
         }
 
         if (targetPackage == null) {
-            Toast.makeText(context, "Unsupported app", Toast.LENGTH_SHORT).show()
+            Toast.makeText(context, "Unsupported app: ${app.appName}", Toast.LENGTH_SHORT).show()
             return
         }
 
@@ -78,7 +78,7 @@ class MusicAppController(private val context: Context) {
 
     /**
      * Fetch current track info from repository
-     * No direct MediaSession access, so only last-known info from broadcasts is returned.
+     * Returns the last known state stored in MusicAppsRepository.
      */
     fun getCurrentTrack(app: MusicApp): MusicApp {
         return MusicAppsRepository.getAllApps()

@@ -7,7 +7,8 @@ import android.media.session.PlaybackState
 import android.os.Build
 
 /**
- * Listens to Spotify playback updates and notifies a callback
+ * Listens to Spotify playback updates via MediaSession
+ * and notifies a callback whenever track changes or playback state changes.
  */
 class SpotifyListener(
     context: Context,
@@ -16,6 +17,8 @@ class SpotifyListener(
 
     private val mediaSessionManager =
         context.getSystemService(Context.MEDIA_SESSION_SERVICE) as MediaSessionManager
+
+    private var controller: MediaController? = null
 
     private val controllerCallback = object : MediaController.Callback() {
         override fun onMetadataChanged(metadata: android.media.MediaMetadata?) {
@@ -39,25 +42,21 @@ class SpotifyListener(
         }
     }
 
-    private var controller: MediaController? = null
-
     init {
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.LOLLIPOP) {
             val sessions = mediaSessionManager.getActiveSessions(null)
             controller = sessions.find { it.packageName == MusicAppController.SPOTIFY_PACKAGE }
             controller?.registerCallback(controllerCallback)
+            // Initial metadata refresh
+            refreshTrack()
         }
     }
 
     private fun refreshTrack() {
-        val metadata = controller?.metadata
-        if (metadata != null) {
-            controllerCallback.onMetadataChanged(metadata)
-        }
+        controller?.metadata?.let { controllerCallback.onMetadataChanged(it) }
     }
 
     fun unregister() {
         controller?.unregisterCallback(controllerCallback)
     }
 }
-
