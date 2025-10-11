@@ -1,0 +1,547 @@
+package com.example.fiddler.subapps.Fidland.Service
+
+import android.animation.ValueAnimator
+import android.app.Service
+import android.content.BroadcastReceiver
+import android.content.Context
+import android.content.Intent
+import android.content.IntentFilter
+import android.graphics.Color
+import android.graphics.PixelFormat
+import android.os.Build
+import android.os.Handler
+import android.os.IBinder
+import android.os.Looper
+import android.util.TypedValue
+import android.view.GestureDetector
+import android.view.Gravity
+import android.view.LayoutInflater
+import android.view.MotionEvent
+import android.view.View
+import android.view.ViewTreeObserver
+import android.view.WindowManager
+import android.widget.FrameLayout
+import android.widget.LinearLayout
+import android.widget.TextView
+import androidx.core.animation.doOnEnd
+import androidx.core.view.isVisible
+import androidx.viewpager2.widget.ViewPager2
+import com.example.fiddler.MainActivity
+import com.example.fiddler.R
+import com.example.fiddler.subapps.Fidland.TopicPage
+import com.example.fiddler.subapps.Fidland.apps.AppsTopic
+import com.example.fiddler.subapps.Fidland.music.MusicTopic
+import com.example.fiddler.subapps.Fidland.phs2.NetSpeedUpdater
+import com.example.fiddler.subapps.Fidland.playlist.PlaylistTopic
+import com.example.fiddler.subapps.Fidland.quicksettings.QuickSettingsTopic
+
+class FidlandService : Service(), GestureDetector.OnGestureListener, GestureDetector.OnDoubleTapListener {
+
+    private lateinit var windowManager: WindowManager
+    private lateinit var overlayView: View
+    private lateinit var gestureDetector: GestureDetector
+    private lateinit var params: WindowManager.LayoutParams
+
+    private lateinit var expandedContainer: FrameLayout
+    private lateinit var rightSegment: LinearLayout
+    private lateinit var leftSegment: LinearLayout
+    private lateinit var cameraMask: View
+
+    private lateinit var eqSegment: View
+    private lateinit var timerSegment: View
+    private lateinit var callSegment: View
+    private lateinit var btSegment: View
+    private lateinit var recordSegment: View
+
+    private lateinit var timerIcon: View
+    private lateinit var callIcon: View
+    private lateinit var btIcon: View
+    private lateinit var recordIcon: View
+
+    private lateinit var musicSegment: View
+    private lateinit var queueSegment: View
+    private lateinit var quickSettingsSegment: View
+
+    private lateinit var txtUpload: TextView
+    private lateinit var txtDownload: TextView
+
+    private val segmentViews = mutableListOf<View>()
+    private var currentSegmentIndex = 0
+    private val handler = Handler(Looper.getMainLooper())
+    private var segmentSwitcherRunning = false
+
+    private var networkTrafficEnabled = false
+    private var eqEnabled = false
+    private var timerEnabled = false
+    private var callEnabled = false
+    private var btEnabled = false
+    private var recordEnabled = false
+
+    private var isExpanded = false
+    private var netSpeedUpdater: NetSpeedUpdater? = null
+
+    private var baseCameraCenterX: Int? = null // fixed anchor for all phases
+
+    private val overlayUpdateReceiver = object : BroadcastReceiver() {
+        override fun onReceive(context: Context?, intent: Intent?) {
+            updateOverlayComponents()
+        }
+    }
+
+    // Phase touch box
+    private lateinit var phaseTouchBox: FrameLayout
+    private val touchBoxWidth by lazy { (200 * resources.displayMetrics.density).toInt() }
+    private val touchBoxHeight by lazy { (75 * resources.displayMetrics.density).toInt() }
+    private val touchBoxwdoff by lazy { (touchBoxWidth - (100 * resources.displayMetrics.density)).toInt() }
+
+    // Phase refresh cooldown
+    private var lastPhaseRefreshTime = 0L
+    private val phaseRefreshCooldown = 0L
+
+    private fun flashPhaseTouchBox() {
+        phaseTouchBox.setBackgroundColor(Color.parseColor("#80000000")) // black 50% opacity
+        phaseTouchBox.visibility = View.VISIBLE
+        fixZOrder()
+        handler.postDelayed({
+            phaseTouchBox.setBackgroundColor(Color.TRANSPARENT)
+        }, 1000) // 1 second
+    }
+
+    private fun placePhaseTouchBox() {
+        if (!::phaseTouchBox.isInitialized || !::overlayView.isInitialized) return
+        overlayView.post {
+            val screenWidth = resources.displayMetrics.widthPixels
+            phaseTouchBox.x = ((screenWidth - touchBoxWidth) / 2f) - touchBoxwdoff
+            phaseTouchBox.y = overlayView.y + overlayView.height
+            if (::phaseTouchBox.isInitialized && phaseTouchBox.visibility == View.VISIBLE) {
+                phaseTouchBox.bringToFront()  // always on top
+            }
+        }
+    }
+
+    private fun setupPhaseTouchBox() {
+        phaseTouchBox = FrameLayout(this).apply {
+            setBackgroundColor(Color.TRANSPARENT)
+            layoutParams = WindowManager.LayoutParams(
+                touchBoxWidth,
+                touchBoxHeight,
+                if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O)
+                    WindowManager.LayoutParams.TYPE_APPLICATION_OVERLAY
+                else
+                    WindowManager.LayoutParams.TYPE_PHONE,
+                WindowManager.LayoutParams.FLAG_NOT_FOCUSABLE or
+                        WindowManager.LayoutParams.FLAG_LAYOUT_NO_LIMITS or
+                        WindowManager.LayoutParams.FLAG_LAYOUT_IN_SCREEN or
+                        WindowManager.LayoutParams.FLAG_NOT_TOUCH_MODAL,
+                PixelFormat.TRANSLUCENT
+            ).apply { gravity = Gravity.TOP or Gravity.CENTER_HORIZONTAL }
+
+            setOnTouchListener { _, event ->
+                gestureDetector.onTouchEvent(event)
+                true
+            }
+        }
+
+        windowManager.addView(phaseTouchBox, phaseTouchBox.layoutParams)
+        placePhaseTouchBox()
+    }
+
+
+    private fun showPhase1to3TouchBox(show: Boolean) {
+        if (!::phaseTouchBox.isInitialized) return
+        phaseTouchBox.visibility = if (show) View.VISIBLE else View.GONE
+        fixZOrder()
+        if (show) placePhaseTouchBox()
+    }
+
+    private fun fixZOrder() {
+        if (::overlayView.isInitialized) overlayView.bringToFront()
+        if (::phaseTouchBox.isInitialized && phaseTouchBox.isVisible) phaseTouchBox.bringToFront()
+    }
+
+    private fun refreshPhaseUI() {
+        val now = System.currentTimeMillis()
+        if (now - lastPhaseRefreshTime < phaseRefreshCooldown) return
+        lastPhaseRefreshTime = now
+
+        if (!isExpanded) showPhase1to3TouchBox(true)
+        else showPhase1to3TouchBox(false)
+        fixZOrder()
+    }
+
+
+
+    override fun onBind(intent: Intent?): IBinder? = null
+
+    override fun onCreate() {
+        super.onCreate()
+        windowManager = getSystemService(WINDOW_SERVICE) as WindowManager
+        gestureDetector = GestureDetector(this, this)
+        gestureDetector.setOnDoubleTapListener(this)
+
+        overlayView = LayoutInflater.from(this).inflate(R.layout.overlay_fidland_pill, null)
+        expandedContainer = overlayView.findViewById(R.id.expanded_container)
+        rightSegment = overlayView.findViewById(R.id.right_segment)
+        leftSegment = overlayView.findViewById(R.id.left_segment)
+        cameraMask = overlayView.findViewById(R.id.camera_mask)
+        txtUpload = overlayView.findViewById(R.id.txt_upload)
+        txtDownload = overlayView.findViewById(R.id.txt_download)
+
+        eqSegment = overlayView.findViewById(R.id.eq_segment)
+        timerSegment = overlayView.findViewById(R.id.timer_segment)
+        callSegment = overlayView.findViewById(R.id.call_segment)
+        btSegment = overlayView.findViewById(R.id.bt_segment)
+        recordSegment = overlayView.findViewById(R.id.record_segment)
+        segmentViews.addAll(listOf(eqSegment, timerSegment, callSegment, btSegment, recordSegment))
+
+        timerIcon = overlayView.findViewById(R.id.timer_icon)
+        callIcon = overlayView.findViewById(R.id.call_icon)
+        btIcon = overlayView.findViewById(R.id.bt_icon)
+        recordIcon = overlayView.findViewById(R.id.record_icon)
+
+        musicSegment = overlayView.findViewById(R.id.music_topic_container)
+        queueSegment = overlayView.findViewById(R.id.playlist_topic_container)
+        quickSettingsSegment = overlayView.findViewById(R.id.quick_settings_topic_container)
+
+        // Main overlay params
+        params = WindowManager.LayoutParams(
+            WindowManager.LayoutParams.WRAP_CONTENT,
+            WindowManager.LayoutParams.WRAP_CONTENT,
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O)
+                WindowManager.LayoutParams.TYPE_APPLICATION_OVERLAY
+            else
+                WindowManager.LayoutParams.TYPE_PHONE,
+            WindowManager.LayoutParams.FLAG_NOT_FOCUSABLE or
+                    WindowManager.LayoutParams.FLAG_LAYOUT_NO_LIMITS or
+                    WindowManager.LayoutParams.FLAG_LAYOUT_IN_SCREEN,
+            PixelFormat.TRANSLUCENT
+        )
+        params.gravity = Gravity.TOP or Gravity.CENTER_HORIZONTAL
+        params.x = 0
+        params.y = 7
+
+        overlayView.setOnTouchListener { _, event ->
+            gestureDetector.onTouchEvent(event)
+            true
+        }
+
+        windowManager.addView(overlayView, params)
+        startSegmentSwitcher()
+
+        // --- Phase touch box setup ---
+        phaseTouchBox = FrameLayout(this).apply {
+            setBackgroundColor(Color.TRANSPARENT)
+            layoutParams = WindowManager.LayoutParams(
+                touchBoxWidth,
+                touchBoxHeight,
+                if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O)
+                    WindowManager.LayoutParams.TYPE_APPLICATION_OVERLAY
+                else
+                    WindowManager.LayoutParams.TYPE_PHONE,
+                WindowManager.LayoutParams.FLAG_NOT_FOCUSABLE or
+                        WindowManager.LayoutParams.FLAG_LAYOUT_NO_LIMITS or
+                        WindowManager.LayoutParams.FLAG_LAYOUT_IN_SCREEN or
+                        WindowManager.LayoutParams.FLAG_NOT_TOUCH_MODAL,
+                PixelFormat.TRANSLUCENT
+            ).apply {
+                gravity = Gravity.TOP or Gravity.CENTER_HORIZONTAL
+                x = 0
+                y = 0
+            }
+
+            setOnTouchListener { _, event ->
+                gestureDetector.onTouchEvent(event)
+                true
+            }
+        }
+
+        windowManager.addView(phaseTouchBox, phaseTouchBox.layoutParams)
+
+        // Overlay updates broadcast
+        val filter = IntentFilter("com.example.fiddler.FIDLAND_UPDATE_OVERLAY")
+        registerReceiver(overlayUpdateReceiver, filter, RECEIVER_NOT_EXPORTED)
+
+        // After overlay layout, position overlay and phase touch box
+        overlayView.viewTreeObserver.addOnGlobalLayoutListener(object : ViewTreeObserver.OnGlobalLayoutListener {
+            override fun onGlobalLayout() {
+                overlayView.viewTreeObserver.removeOnGlobalLayoutListener(this)
+                baseCameraCenterX = 48
+                placeOverlayByCameraMask(forceRecalculate = true)
+                updateOverlayComponents()
+                initPhase4()
+
+                // Flash touch box black once
+                flashPhaseTouchBox()
+
+                // Ensure touch box is positioned and z-order updated
+                placePhaseTouchBox()
+                fixZOrder()
+            }
+        })
+    }
+
+
+
+    // Phase 4 handling
+    private val topics = mutableListOf<TopicPage>()
+    private var currentTopicIndex = 0
+
+    // Inside FidlandService
+
+    private fun setupPhase4Topics() {
+        val prefs = getSharedPreferences("fidland_prefs", MODE_PRIVATE)
+        topics.clear()
+
+        val musicPager: ViewPager2 = overlayView.findViewById(R.id.music_pages)
+        val playlistPager: ViewPager2 = overlayView.findViewById(R.id.playlist_pages)
+        val appsPager: ViewPager2 = overlayView.findViewById(R.id.apps_pages)
+        val quickSettingsPager: ViewPager2 = overlayView.findViewById(R.id.quick_settings_pages)
+
+        if (prefs.getBoolean("music_player", true)) topics.add(MusicTopic(this, musicPager))
+        if (prefs.getBoolean("music_queue", true)) topics.add(PlaylistTopic(this, playlistPager))
+        if (prefs.getInt("app_rows", 3) > 0 && prefs.getInt("app_columns", 4) > 0) topics.add(
+            AppsTopic(this, appsPager)
+        )
+        if (prefs.getBoolean("quick_settings", true)) topics.add(
+            QuickSettingsTopic(
+                this,
+                quickSettingsPager
+            )
+        )
+
+        expandedContainer.removeAllViews()
+    }
+
+    private fun showCurrentTopic() {
+        if (topics.isEmpty()) return
+        expandedContainer.removeAllViews()
+        expandedContainer.addView(topics[currentTopicIndex].getView())
+    }
+
+    private fun handlePhase4Swipe(dx: Float, dy: Float) {
+        if (!isExpanded || topics.isEmpty()) return
+        when {
+            dy < -10 -> collapsePill()
+            dy > 10 -> {
+                currentTopicIndex = (currentTopicIndex + 1) % topics.size
+                showCurrentTopic()
+            }
+            dx > 10 -> topics[currentTopicIndex].onSwipeRight()
+            dx < -10 -> topics[currentTopicIndex].onSwipeLeft()
+        }
+    }
+
+    private fun initPhase4() {
+        setupPhase4Topics()
+        showCurrentTopic()
+    }
+
+    override fun onDestroy() {
+        super.onDestroy()
+        stopSegmentSwitcher()
+        netSpeedUpdater?.stop()
+        if (::overlayView.isInitialized && overlayView.isAttachedToWindow) windowManager.removeView(overlayView)
+        unregisterReceiver(overlayUpdateReceiver)
+        if (::phaseTouchBox.isInitialized && phaseTouchBox.isAttachedToWindow)
+            windowManager.removeView(phaseTouchBox)
+    }
+
+    // Gesture callbacks
+    override fun onDown(e: MotionEvent): Boolean = true  // Required to start gesture detection
+
+    override fun onShowPress(e: MotionEvent) {
+        // Can also expand here if desired
+    }
+
+    override fun onSingleTapUp(e: MotionEvent): Boolean = true  // Consumes tap
+
+    override fun onLongPress(e: MotionEvent) {
+        // Open main activity on long press
+        startActivity(Intent(this, MainActivity::class.java).apply {
+            addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+        })
+    }
+
+    override fun onScroll(
+        e1: MotionEvent?,
+        e2: MotionEvent,
+        distanceX: Float,
+        distanceY: Float
+    ): Boolean {
+        if (!isExpanded) {
+            // If collapsed, any significant swipe expands
+            if (distanceY < -10 || distanceY > 10 || distanceX < -10 || distanceX > 10) expandPill()
+        } else {
+            // If expanded, handle phase 4 swipes
+            handlePhase4Swipe(-distanceX, -distanceY)
+        }
+        return true
+    }
+
+    override fun onFling(
+        e1: MotionEvent?,
+        e2: MotionEvent,
+        velocityX: Float,
+        velocityY: Float
+    ): Boolean {
+        if (!isExpanded && e1 != null && e2 != null) {
+            val deltaX = e2.x - e1.x
+            val deltaY = e2.y - e1.y
+            if (Math.abs(deltaX) > 100 || Math.abs(deltaY) > 100) {
+                expandPill()
+                return true
+            }
+        }
+        return false
+    }
+
+    // Double-tap
+    override fun onSingleTapConfirmed(e: MotionEvent): Boolean {
+        if (!isExpanded) expandPill()
+        return true
+    }
+
+    override fun onDoubleTap(e: MotionEvent): Boolean = false
+    override fun onDoubleTapEvent(e: MotionEvent): Boolean = false
+
+
+
+    private fun expandPill() {
+        if (isExpanded) return
+        isExpanded = true
+        expandedContainer.visibility = View.VISIBLE
+
+        // Smooth slide animation for expansion
+        expandedContainer.measure(View.MeasureSpec.UNSPECIFIED, View.MeasureSpec.UNSPECIFIED)
+        val targetHeight = expandedContainer.measuredHeight
+        expandedContainer.layoutParams.height = 0
+        expandedContainer.requestLayout()
+
+        val animator = ValueAnimator.ofInt(0, targetHeight)
+        animator.duration = 200
+        animator.addUpdateListener {
+            expandedContainer.layoutParams.height = it.animatedValue as Int
+            expandedContainer.requestLayout()
+        }
+        animator.start()
+    }
+
+    private fun collapsePill() {
+        if (!isExpanded) return
+        isExpanded = false
+
+        val initialHeight = expandedContainer.height
+        val animator = ValueAnimator.ofInt(initialHeight, 0)
+        animator.duration = 200
+        animator.addUpdateListener {
+            expandedContainer.layoutParams.height = it.animatedValue as Int
+            expandedContainer.requestLayout()
+        }
+        animator.start()
+        animator.doOnEnd { expandedContainer.visibility = View.GONE }
+    }
+
+    private fun startSegmentSwitcher() {
+        if (segmentSwitcherRunning) return
+        segmentSwitcherRunning = true
+        handler.post(object : Runnable {
+            override fun run() {
+                segmentViews.forEach { it.visibility = View.GONE }
+                if (segmentViews.isNotEmpty()) {
+                    segmentViews[currentSegmentIndex].visibility = View.VISIBLE
+                    currentSegmentIndex = (currentSegmentIndex + 1) % segmentViews.size
+                }
+                handler.postDelayed(this, 5000)
+            }
+        })
+    }
+
+    private fun stopSegmentSwitcher() {
+        segmentSwitcherRunning = false
+        handler.removeCallbacksAndMessages(null)
+    }
+
+    private fun updateOverlayComponents() {
+        val prefs = getSharedPreferences("fidland_prefs", MODE_PRIVATE)
+        networkTrafficEnabled = prefs.getBoolean("network_traffic", false)
+        eqEnabled = prefs.getBoolean("equalizer_info", false)
+        timerEnabled = prefs.getBoolean("timer", false)
+        callEnabled = prefs.getBoolean("call", false)
+        btEnabled = prefs.getBoolean("bt", false)
+        recordEnabled = prefs.getBoolean("record", false)
+
+        toggleNetworkTraffic(networkTrafficEnabled)
+
+        timerIcon.visibility = if (timerEnabled) View.VISIBLE else View.GONE
+        callIcon.visibility = if (callEnabled) View.VISIBLE else View.GONE
+        btIcon.visibility = if (btEnabled) View.VISIBLE else View.GONE
+        recordIcon.visibility = if (recordEnabled) View.VISIBLE else View.GONE
+
+        eqSegment.visibility = if (eqEnabled) View.VISIBLE else View.GONE
+        timerSegment.visibility = if (timerEnabled) View.VISIBLE else View.GONE
+        callSegment.visibility = if (callEnabled) View.VISIBLE else View.GONE
+        btSegment.visibility = if (btEnabled) View.VISIBLE else View.GONE
+        recordSegment.visibility = if (recordEnabled) View.VISIBLE else View.GONE
+
+        val rightCount = listOf(eqEnabled, timerEnabled, callEnabled, btEnabled, recordEnabled).count { it }
+        animateSegmentWidth(rightSegment, rightCount * 14)
+
+        overlayView.post {
+            if (baseCameraCenterX != null) {
+                val density = resources.displayMetrics.density
+                val minLeftWidthPx = (50 * density).toInt()
+                val pad = (6 * density).toInt()
+
+                if (leftSegment.width < minLeftWidthPx) leftSegment.layoutParams.width = minLeftWidthPx
+                leftSegment.setPadding(pad, leftSegment.paddingTop, pad, leftSegment.paddingBottom)
+
+                val cameraLeftX = baseCameraCenterX!! - cameraMask.width / 2
+                leftSegment.x = (cameraLeftX - leftSegment.width).toFloat()
+                leftSegment.requestLayout()
+            }
+            placeOverlayByCameraMask()
+        }
+    }
+
+    private fun toggleNetworkTraffic(enabled: Boolean) {
+        if (enabled) {
+            if (netSpeedUpdater == null) netSpeedUpdater =
+                NetSpeedUpdater(this, txtUpload, txtDownload, leftSegment, overlayView)
+            netSpeedUpdater?.start()
+        } else netSpeedUpdater?.stop()
+
+        txtUpload.setTextSize(TypedValue.COMPLEX_UNIT_PX, txtUpload.textSize * 0.9f)
+        txtDownload.setTextSize(TypedValue.COMPLEX_UNIT_PX, txtDownload.textSize * 0.9f)
+
+        txtUpload.visibility = if (enabled) View.VISIBLE else View.GONE
+        txtDownload.visibility = if (enabled) View.VISIBLE else View.GONE
+
+        placeOverlayByCameraMask()
+    }
+
+    private fun animateSegmentWidth(segment: View, targetWidthDp: Int, duration: Long = 250) {
+        val targetWidthPx = (targetWidthDp * resources.displayMetrics.density).toInt()
+        ValueAnimator.ofInt(segment.width, targetWidthPx).apply {
+            this.duration = duration
+            addUpdateListener {
+                segment.layoutParams.width = it.animatedValue as Int
+                segment.requestLayout()
+            }
+            start()
+        }
+    }
+
+    private fun placeOverlayByCameraMask(forceRecalculate: Boolean = false) {
+        overlayView.post {
+            baseCameraCenterX?.let { cameraX ->
+                val overlayWidth = overlayView.measuredWidth.takeIf { it > 0 } ?: overlayView.width
+                val newX = cameraX - overlayWidth / 2
+                if (::windowManager.isInitialized && ::params.isInitialized && overlayView.isAttachedToWindow) {
+                    params.x = newX
+                    params.gravity = Gravity.TOP
+                    try { windowManager.updateViewLayout(overlayView, params) } catch (_: Exception) {}
+                }
+            }
+        }
+    }
+}
