@@ -12,9 +12,14 @@ import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.text.font.Font
+import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import com.example.fiddler.R
+import com.example.fiddler.core.SubAppState
 import kotlinx.coroutines.flow.collectLatest
 import kotlinx.coroutines.flow.distinctUntilChanged
 import kotlinx.coroutines.launch
@@ -22,19 +27,20 @@ import kotlinx.coroutines.launch
 @Composable
 fun NtspdScreen() {
     val context = LocalContext.current
+    val fontBody = FontFamily(Font(R.font.font_body))
+    val fontHandwriting = FontFamily(Font(R.font.font_handwriting))
     val maxOffsetDp = 100
     val defaultCenterOffset = -25
 
-    var enableChecked by remember { mutableStateOf(false) }
-    var placement by remember { mutableStateOf("center") }
     var offset by remember { mutableStateOf(maxOffsetDp + defaultCenterOffset) }
+    var placement by remember { mutableStateOf("center") }
+    val enableChecked = SubAppState.ntspdEnabled
 
     val scrollState = rememberScrollState()
-    val coroutineScope = rememberCoroutineScope()
 
-    // Observe changes to offset or placement using snapshotFlow
-    LaunchedEffect(offset, placement, enableChecked) {
-        snapshotFlow { Triple(offset, placement, enableChecked) }
+    // Update overlay when parameters change
+    LaunchedEffect(offset, placement, enableChecked.value) {
+        snapshotFlow { Triple(offset, placement, enableChecked.value) }
             .distinctUntilChanged()
             .collectLatest { (newOffset, newPlacement, enabled) ->
                 if (enabled) updateOverlay(context, newOffset, newPlacement)
@@ -50,70 +56,186 @@ fun NtspdScreen() {
     ) {
         Spacer(modifier = Modifier.height(60.dp))
 
-        Text("Internet", fontSize = 54.sp)
-        Spacer(modifier = Modifier.height(8.dp))
-        Text("Configurable elements like Traffic info in status bar.", fontSize = 20.sp)
+        Text(
+            text = "Internet",
+            fontFamily = fontBody,
+            fontSize = 54.sp,
+            color = MaterialTheme.colorScheme.onSurface,
+            modifier = Modifier.padding(bottom = 8.dp)
+        )
+
+        Text(
+            text = "Configurable elements like Traffic info in status bar.",
+            fontFamily = fontHandwriting,
+            fontSize = 20.sp,
+            color = MaterialTheme.colorScheme.onSurface
+        )
 
         Spacer(modifier = Modifier.height(32.dp))
-        Text("Network Traffic Info", fontSize = 28.sp)
-        Spacer(modifier = Modifier.height(8.dp))
-        Text("Add configurable traffic info onto your status bar.", fontSize = 20.sp)
+
+        Text(
+            text = "Network Traffic Info",
+            fontFamily = fontBody,
+            fontSize = 28.sp,
+            color = MaterialTheme.colorScheme.onSurface,
+            modifier = Modifier.padding(bottom = 8.dp)
+        )
+
+        Text(
+            text = "Add configurable traffic info onto your status bar.",
+            fontFamily = fontHandwriting,
+            fontSize = 20.sp,
+            color = MaterialTheme.colorScheme.onSurface
+        )
 
         Spacer(modifier = Modifier.height(16.dp))
 
+        // Enable checkbox
         Row(verticalAlignment = Alignment.CenterVertically) {
             Checkbox(
-                checked = enableChecked,
-                onCheckedChange = { enableChecked = it }
+                checked = SubAppState.ntspdEnabled.value,
+                onCheckedChange = { SubAppState.ntspdEnabled.value = it },
+                colors = CheckboxDefaults.colors(checkedColor = MaterialTheme.colorScheme.primary)
             )
-            Spacer(modifier = Modifier.width(8.dp))
-            Text("Enable Network Speed Indicator", fontSize = 20.sp)
+            Text(
+                text = "Enable Network Speed Indicator",
+                fontFamily = fontHandwriting,
+                fontSize = 20.sp,
+                color = MaterialTheme.colorScheme.onSurface,
+                modifier = Modifier.padding(start = 8.dp)
+            )
         }
 
         Spacer(modifier = Modifier.height(16.dp))
 
-        Button(onClick = {
-            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M &&
-                !Settings.canDrawOverlays(context)
-            ) {
-                val intent = Intent(
-                    Settings.ACTION_MANAGE_OVERLAY_PERMISSION,
-                    Uri.parse("package:${context.packageName}")
-                )
-                context.startActivity(intent)
-            } else {
-                Toast.makeText(context, "Overlay permission already granted", Toast.LENGTH_SHORT).show()
-            }
-        }) {
-            Text("Request Overlay Permission", fontSize = 18.sp)
+        // Overlay permission button
+        OutlinedButton(
+            onClick = {
+                if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M &&
+                    !Settings.canDrawOverlays(context)
+                ) {
+                    val intent = Intent(
+                        Settings.ACTION_MANAGE_OVERLAY_PERMISSION,
+                        Uri.parse("package:${context.packageName}")
+                    )
+                    context.startActivity(intent)
+                } else {
+                    Toast.makeText(
+                        context,
+                        "Overlay permission already granted",
+                        Toast.LENGTH_SHORT
+                    ).show()
+                }
+            },
+            shape = MaterialTheme.shapes.medium,
+            border = ButtonDefaults.outlinedButtonBorder.copy(width = 1.dp),
+            modifier = Modifier.padding(top = 8.dp)
+        ) {
+            Text(
+                text = "Request Overlay Permission",
+                fontFamily = fontHandwriting,
+                fontSize = 18.sp,
+                color = Color.Black
+            )
         }
 
         Spacer(modifier = Modifier.height(16.dp))
-        Text("Placement in status bar:", fontSize = 22.sp)
+
+        Text(
+            text = "Placement in status bar:",
+            fontFamily = fontBody,
+            fontSize = 22.sp,
+            color = MaterialTheme.colorScheme.onSurface,
+            modifier = Modifier.padding(top = 5.dp)
+        )
+
         Row(verticalAlignment = Alignment.CenterVertically) {
-            RadioButton(selected = placement == "left", onClick = { placement = "left" })
-            Text("Left", fontSize = 20.sp, modifier = Modifier.padding(start = 4.dp, end = 8.dp))
-            RadioButton(selected = placement == "center", onClick = { placement = "center" })
-            Text("Center", fontSize = 20.sp, modifier = Modifier.padding(start = 4.dp, end = 8.dp))
-            RadioButton(selected = placement == "right", onClick = { placement = "right" })
-            Text("Right", fontSize = 20.sp, modifier = Modifier.padding(start = 4.dp))
+            RadioButton(
+                selected = placement == "left",
+                onClick = { placement = "left" },
+                colors = RadioButtonDefaults.colors(
+                    selectedColor = Color.Black,
+                    unselectedColor = Color.Black
+                )
+            )
+            Text(
+                text = "Left",
+                fontFamily = fontHandwriting,
+                fontSize = 20.sp,
+                color = MaterialTheme.colorScheme.onSurface
+            )
+
+            RadioButton(
+                selected = placement == "center",
+                onClick = { placement = "center" },
+                colors = RadioButtonDefaults.colors(
+                    selectedColor = Color.Black,
+                    unselectedColor = Color.Black
+                )
+            )
+            Text(
+                text = "Center",
+                fontFamily = fontHandwriting,
+                fontSize = 20.sp,
+                color = MaterialTheme.colorScheme.onSurface
+            )
+
+            RadioButton(
+                selected = placement == "right",
+                onClick = { placement = "right" },
+                colors = RadioButtonDefaults.colors(
+                    selectedColor = Color.Black,
+                    unselectedColor = Color.Black
+                )
+            )
+            Text(
+                text = "Right",
+                fontFamily = fontHandwriting,
+                fontSize = 20.sp,
+                color = MaterialTheme.colorScheme.onSurface
+            )
         }
 
         Spacer(modifier = Modifier.height(16.dp))
-        Text("Offset from notch/camera hole:", fontSize = 22.sp)
+
+        Text(
+            text = "Offset from notch/camera hole:",
+            fontFamily = fontBody,
+            fontSize = 22.sp,
+            color = MaterialTheme.colorScheme.onSurface,
+            modifier = Modifier.padding(top = 5.dp)
+        )
 
         Slider(
             value = offset.toFloat(),
             onValueChange = { offset = it.toInt() },
-            valueRange = 0f..(maxOffsetDp * 2).toFloat()
+            valueRange = 0f..(maxOffsetDp * 2).toFloat(),
+            colors = SliderDefaults.colors(
+                thumbColor = Color.Black,
+                activeTrackColor = Color.DarkGray,
+                inactiveTrackColor = Color.LightGray
+            )
         )
 
-        Text("Offset: $offset dp", fontSize = 18.sp)
+        Text(
+            text = "$offset dp",
+            fontFamily = fontHandwriting,
+            fontSize = 18.sp,
+            color = MaterialTheme.colorScheme.onSurface
+        )
+
+        Spacer(modifier = Modifier.height(32.dp))
     }
 }
 
-// Function to update overlay service
 private fun updateOverlay(context: android.content.Context, offset: Int, placement: String) {
+    if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M &&
+        !Settings.canDrawOverlays(context)
+    ) {
+        Toast.makeText(context, "Overlay permission required", Toast.LENGTH_SHORT).show()
+        return
+    }
+
     val intent = Intent(context, NetSpeedService::class.java).apply {
         putExtra("placement", placement)
         putExtra("offset", offset)

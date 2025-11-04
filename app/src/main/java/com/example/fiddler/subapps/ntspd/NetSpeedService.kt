@@ -3,6 +3,7 @@ package com.example.fiddler.subapps.ntspd
 import NetSpeedOverlay
 import android.app.Service
 import android.content.Intent
+import android.graphics.PixelFormat
 import android.net.TrafficStats
 import android.os.Build
 import android.os.Handler
@@ -10,10 +11,9 @@ import android.os.IBinder
 import android.os.Looper
 import android.view.Gravity
 import android.view.WindowManager
-import androidx.compose.runtime.*
+import androidx.compose.runtime.mutableStateOf
 import androidx.compose.ui.platform.ComposeView
-import androidx.compose.ui.unit.dp
-import androidx.core.content.ContextCompat
+import androidx.compose.ui.platform.ViewCompositionStrategy
 
 class NetSpeedService : Service() {
 
@@ -57,6 +57,8 @@ class NetSpeedService : Service() {
 
     private fun createOverlay() {
         overlayView = ComposeView(this).apply {
+            // Proper composition disposal when overlay is removed
+            setViewCompositionStrategy(ViewCompositionStrategy.DisposeOnDetachedFromWindow)
             setContent {
                 NetSpeedOverlay(
                     uploadText = uploadState.value,
@@ -66,7 +68,7 @@ class NetSpeedService : Service() {
         }
 
         val params = WindowManager.LayoutParams(
-            dpToPx(30), dpToPx(25),
+            dpToPx(70), dpToPx(25),
             if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O)
                 WindowManager.LayoutParams.TYPE_APPLICATION_OVERLAY
             else
@@ -74,7 +76,7 @@ class NetSpeedService : Service() {
             WindowManager.LayoutParams.FLAG_NOT_FOCUSABLE or
                     WindowManager.LayoutParams.FLAG_LAYOUT_NO_LIMITS or
                     WindowManager.LayoutParams.FLAG_LAYOUT_IN_SCREEN,
-            android.graphics.PixelFormat.TRANSLUCENT
+            PixelFormat.TRANSLUCENT
         )
 
         params.gravity = getGravity(placement)
@@ -127,11 +129,11 @@ class NetSpeedService : Service() {
         var value = speedBytes / 1024.0
         var unit = "KB/s"
 
-        if (value >= 100) {
+        if (value >= 1024) {
             value /= 1024.0
             unit = "MB/s"
         }
-        if (value >= 100) {
+        if (value >= 1024) {
             value /= 1024.0
             unit = "GB/s"
         }

@@ -3,8 +3,6 @@ package com.example.fiddler
 import android.os.Bundle
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
-import androidx.compose.animation.core.animateDpAsState
-import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.gestures.detectHorizontalDragGestures
@@ -14,15 +12,13 @@ import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.draw.clipToBounds
-import androidx.compose.ui.draw.rotate
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.platform.LocalConfiguration
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.painterResource
+import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.tooling.preview.Preview
-import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.example.fiddler.ui.theme.FiddlerTheme
@@ -59,23 +55,10 @@ class MainActivity : ComponentActivity() {
     }
 }
 
-// ------------------ Extension Function ------------------
-fun Modifier.clipToBounds(enabled: Boolean): Modifier {
-    return if (enabled) this.clipToBounds() else this
-}
-// --------------------------------------------------------
-
 @OptIn(ExperimentalPagerApi::class)
 @Composable
 fun MainScreen(apps: List<AppItem>) {
-    var isSidebarExpanded by remember { mutableStateOf(false) }
-
-    val collapsedWidth: Dp = 60.dp
-    val expandedWidth: Dp = 180.dp
-
-    val sidebarWidth by animateDpAsState(targetValue = if (isSidebarExpanded) expandedWidth else collapsedWidth)
-    val arrowRotation by animateFloatAsState(targetValue = if (isSidebarExpanded) 180f else 0f)
-
+    val sidebarWidth = 70.dp
     val pagerState = rememberPagerState()
     val scope = rememberCoroutineScope()
     val context = LocalContext.current
@@ -83,81 +66,42 @@ fun MainScreen(apps: List<AppItem>) {
     val configuration = LocalConfiguration.current
     val screenHeight = configuration.screenHeightDp.dp
     val sidebarHeight = screenHeight * 0.65f
-    val screenWidth = configuration.screenWidthDp.dp
 
-    Row(
-        modifier = Modifier.fillMaxSize(),
-        verticalAlignment = Alignment.CenterVertically
-    ) {
-        // Sidebar
+    Row(modifier = Modifier.fillMaxSize()) {
+
+        // Sidebar (fixed collapsed version)
         Column(
             modifier = Modifier
                 .width(sidebarWidth)
                 .height(sidebarHeight)
-                .background(Color.LightGray, RoundedCornerShape(50.dp))
-                .pointerInput(Unit) {
-                    detectHorizontalDragGestures { _, dragAmount ->
-                        if (dragAmount > 50 && !isSidebarExpanded) isSidebarExpanded = true
-                        if (dragAmount < -50 && isSidebarExpanded) isSidebarExpanded = false
-                    }
-                },
-            horizontalAlignment = Alignment.CenterHorizontally
+                .align(Alignment.CenterVertically)
+                .background(Color.LightGray, RoundedCornerShape(50.dp)),
+            horizontalAlignment = Alignment.CenterHorizontally,
+            verticalArrangement = Arrangement.Center
         ) {
-            Spacer(modifier = Modifier.weight(0.05f))
-
-            Column(
-                modifier = Modifier.weight(0.7f),
-                horizontalAlignment = Alignment.CenterHorizontally
-            ) {
-                Spacer(modifier = Modifier.weight(0.05f))
-                apps.forEachIndexed { index, app ->
-                    Box(modifier = Modifier.height(50.dp), contentAlignment = Alignment.Center) {
-                        SidebarItem(
-                            item = app,
-                            isExpanded = isSidebarExpanded,
-                            isActive = pagerState.currentPage == index
-                        ) {
-                            scope.launch { pagerState.animateScrollToPage(index) }
-                        }
-                    }
-                    if (index != apps.lastIndex) {
-                        Spacer(modifier = Modifier.weight(if (isSidebarExpanded) 0.05f else 0.03f))
-                    }
+            apps.forEachIndexed { index, app ->
+                SidebarItem(
+                    item = app,
+                    isActive = pagerState.currentPage == index
+                ) {
+                    scope.launch { pagerState.animateScrollToPage(index) }
                 }
-                Spacer(modifier = Modifier.weight(0.05f))
+                if (index != apps.lastIndex) {
+                    Spacer(modifier = Modifier.height(30.dp))
+                }
             }
-
-            Spacer(modifier = Modifier.weight(0.1f))
-
-            IconButton(
-                onClick = { isSidebarExpanded = !isSidebarExpanded },
-                modifier = Modifier.weight(0.05f)
-            ) {
-                Icon(
-                    painter = painterResource(id = R.drawable.doodlearrow),
-                    contentDescription = "Toggle",
-                    modifier = Modifier.rotate(arrowRotation),
-                    tint = Color.Black
-                )
-            }
-
-            Spacer(modifier = Modifier.weight(0.05f))
         }
 
-        // Pager container
+        // Main content
         Box(
             modifier = Modifier
-                .fillMaxHeight()
-                .weight(1f)
-                .clipToBounds(false) // using normal Compose (extension not needed here)
+                .fillMaxSize()
+                .background(Color.White)
         ) {
             VerticalPager(
                 count = apps.size,
                 state = pagerState,
-                modifier = Modifier
-                    .fillMaxHeight()
-                    .width(screenWidth)
-                    .clipToBounds(false) // using extension now
+                modifier = Modifier.fillMaxSize()
             ) { page ->
                 when (apps[page].label) {
                     "Home" -> HomeScreen()
@@ -178,30 +122,31 @@ fun MainScreen(apps: List<AppItem>) {
 }
 
 @Composable
-fun SidebarItem(item: AppItem, isExpanded: Boolean, isActive: Boolean, onClick: () -> Unit) {
-    val iconAlpha by animateFloatAsState(if (isActive) 1f else 0.5f)
-    val textAlpha by animateFloatAsState(if (isActive && isExpanded) 1f else 0f)
-    val iconSize by animateDpAsState(if (isExpanded) 40.dp else 28.dp)
-
-    Row(
+fun SidebarItem(item: AppItem, isActive: Boolean, onClick: () -> Unit) {
+    Column(
         modifier = Modifier
-            .fillMaxWidth()
-            .padding(horizontal = 8.dp)
-            .clickable { onClick() },
-        verticalAlignment = Alignment.CenterVertically
+            .clickable { onClick() }
+            .padding(vertical = 4.dp),
+        horizontalAlignment = Alignment.CenterHorizontally
     ) {
         Icon(
             painter = painterResource(id = item.iconRes),
             contentDescription = item.label,
-            modifier = Modifier.size(iconSize),
-            tint = Color.Unspecified
+            modifier = Modifier.size(if (isActive) 45.dp else 35.dp),
+            tint = if (isActive) Color.Black else Color.DarkGray
         )
-        if (isExpanded) {
-            Spacer(modifier = Modifier.width(8.dp))
+        if (isActive) {
             Text(
                 text = item.label,
-                color = Color.Black.copy(alpha = textAlpha),
-                fontSize = 20.sp
+
+                color = Color.Black,
+                fontSize = 12.sp,
+                modifier = Modifier
+                    .padding(top = 4.dp)
+                    .width(55.dp),
+                softWrap = true,
+                maxLines = 2,
+                textAlign = TextAlign.Center
             )
         }
     }
@@ -215,7 +160,7 @@ fun PreviewMainScreen() {
         AppItem("Internet", R.drawable.doodlenet),
         AppItem("Audio", R.drawable.doodlemusic),
         AppItem("Fidland", R.drawable.doodlefidland),
-        AppItem("Security Group", R.drawable.doodlesecgrp)
+        AppItem("Secure Group", R.drawable.doodlesecgrp)
     )
     FiddlerTheme {
         MainScreen(apps = apps)

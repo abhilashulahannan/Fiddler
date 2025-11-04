@@ -11,6 +11,7 @@ import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.example.fiddler.R
+import com.example.fiddler.core.SubAppState
 
 @Composable
 fun HomeScreen() {
@@ -56,8 +57,8 @@ fun HomeScreen() {
 
         Row(verticalAlignment = Alignment.CenterVertically) {
             Checkbox(
-                checked = ntspdChecked,
-                onCheckedChange = { ntspdChecked = it }
+                checked = SubAppState.ntspdEnabled.value,
+                onCheckedChange = { SubAppState.ntspdEnabled.value = it }
             )
             Text(
                 text = "Net Speed Indicator",
@@ -69,8 +70,8 @@ fun HomeScreen() {
 
         Row(verticalAlignment = Alignment.CenterVertically) {
             Checkbox(
-                checked = rngtnsChecked,
-                onCheckedChange = { rngtnsChecked = it }
+                checked = SubAppState.rngtnsEnabled.value,
+                onCheckedChange = { SubAppState.rngtnsEnabled.value = it }
             )
             Text(
                 text = "Ringtones",
@@ -82,8 +83,8 @@ fun HomeScreen() {
 
         Row(verticalAlignment = Alignment.CenterVertically) {
             Checkbox(
-                checked = fidlndChecked,
-                onCheckedChange = { fidlndChecked = it }
+                checked = SubAppState.fidlandEnabled.value,
+                onCheckedChange = { SubAppState.fidlandEnabled.value = it }
             )
             Text(
                 text = "Fidland",
@@ -95,8 +96,8 @@ fun HomeScreen() {
 
         Row(verticalAlignment = Alignment.CenterVertically) {
             Checkbox(
-                checked = secgrpChecked,
-                onCheckedChange = { secgrpChecked = it }
+                checked = SubAppState.secgrpEnabled.value,
+                onCheckedChange = { SubAppState.secgrpEnabled.value = it }
             )
             Text(
                 text = "Secure Groups",
