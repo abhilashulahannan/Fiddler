@@ -1,49 +1,33 @@
-package com.example.fiddler.subapps.Fidland.service
+package com.example.fiddler.subapps.Fidland.manager
 
-import androidx.compose.foundation.background
-import androidx.compose.foundation.gestures.detectHorizontalDragGestures
-import androidx.compose.foundation.layout.*
-import androidx.compose.material3.Text
-import androidx.compose.runtime.*
-import androidx.compose.ui.Modifier
-import androidx.compose.ui.input.pointer.pointerInput
-import androidx.compose.ui.unit.dp
-import androidx.compose.ui.graphics.Color
-import com.google.accompanist.pager.*
+import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.StateFlow
 
-@Composable
-fun AppsTopicPage(
-    pages: List<String>, // or any data you want to display per page
-    onSwipeLeft: () -> Unit = {},
-    onSwipeRight: () -> Unit = {}
+class AppsTopicManager(
+    private val scope: CoroutineScope
 ) {
-    val pagerState = rememberPagerState()
 
-    HorizontalPager(
-        count = pages.size,
-        state = pagerState,
-        modifier = Modifier
-            .fillMaxWidth()
-            .height(200.dp)
-            .pointerInput(Unit) {
-                detectHorizontalDragGestures { change, dragAmount ->
-                    if (dragAmount > 0) {
-                        onSwipeRight()
-                    } else if (dragAmount < 0) {
-                        onSwipeLeft()
-                    }
-                }
-            }
-    ) { page ->
-        Box(
-            modifier = Modifier
-                .fillMaxSize()
-                .background(Color.LightGray)
-        ) {
-            Text(
-                text = pages[page],
-                modifier = Modifier.padding(16.dp)
-            )
-        }
+    // List of app topic pages
+    private val _pages = MutableStateFlow<List<String>>(emptyList())
+    val pages: StateFlow<List<String>> = _pages
+
+    // Current page index
+    private val _currentPage = MutableStateFlow(0)
+    val currentPage: StateFlow<Int> = _currentPage
+
+    // Update pages dynamically
+    fun setPages(newPages: List<String>) {
+        _pages.value = newPages
+        _currentPage.value = _currentPage.value.coerceAtMost(newPages.size - 1)
+    }
+
+    // Programmatic swipe methods
+    fun swipeLeft() {
+        _currentPage.value = (_currentPage.value + 1).coerceAtMost(_pages.value.size - 1)
+    }
+
+    fun swipeRight() {
+        _currentPage.value = (_currentPage.value - 1).coerceAtLeast(0)
     }
 }

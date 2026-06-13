@@ -1,140 +1,150 @@
 package com.example.fiddler.subapps.Fidland.service
 
 import android.app.Service
-import android.content.*
-import android.os.*
-import android.view.*
-import androidx.compose.foundation.background
-import androidx.compose.foundation.layout.*
-import androidx.compose.foundation.shape.CircleShape
-import androidx.compose.material3.Text
-import androidx.compose.runtime.*
-import androidx.compose.ui.Alignment
-import androidx.compose.ui.Modifier
-import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.platform.ComposeView
-import androidx.compose.ui.unit.dp
-import androidx.compose.ui.unit.sp
-import com.example.fiddler.R
-import com.google.accompanist.pager.*
-import androidx.core.animation.doOnEnd
-import android.animation.ValueAnimator
-import android.graphics.PixelFormat
-import android.os.Build
-import android.content.IntentFilter
-import android.view.Gravity
+import android.content.Context
+import android.content.SharedPreferences
+import android.os.IBinder
 import android.view.WindowManager
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.ui.platform.ComposeView
+import androidx.lifecycle.Lifecycle
+import androidx.lifecycle.LifecycleOwner
+import androidx.lifecycle.LifecycleRegistry
+import androidx.lifecycle.setViewTreeLifecycleOwner
+import androidx.savedstate.SavedStateRegistry
+import androidx.savedstate.SavedStateRegistryController
+import androidx.savedstate.SavedStateRegistryOwner
+import androidx.savedstate.setViewTreeSavedStateRegistryOwner
+import com.example.fiddler.subapps.Fidland.apps.AppsTopic
+import com.example.fiddler.subapps.Fidland.manager.PlaylistTopicManager
+import com.example.fiddler.subapps.Fidland.manager.QuickSettingsManager
+import com.example.fiddler.subapps.Fidland.manager.SegmentSwitcher
+import com.example.fiddler.subapps.Fidland.music.MusicTopicCompose
+import com.example.fiddler.subapps.Fidland.music.SpotifyListener
+import com.example.fiddler.subapps.Fidland.music.YTMusicListener
+import com.example.fiddler.subapps.Fidland.playlist.PlaylistTopicCompose
+import com.example.fiddler.subapps.Fidland.quicksettings.QuickSettingsTopicCompose
+import com.example.fiddler.subapps.Fidland.ui.FidlandRootUI
+import com.example.fiddler.subapps.Fidland.ui.PillPhase
+import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.SupervisorJob
+import kotlinx.coroutines.cancel
 
+class FidlandService : Service(), LifecycleOwner, SavedStateRegistryOwner {
 
-class FidlandService : Service() {
+    private val lifecycleRegistry = LifecycleRegistry(this)
+    private val savedStateRegistryController = SavedStateRegistryController.create(this)
+    override val lifecycle: Lifecycle get() = lifecycleRegistry
+    override val savedStateRegistry: SavedStateRegistry
+        get() = savedStateRegistryController.savedStateRegistry
 
     private lateinit var windowManager: WindowManager
-    private lateinit var composeView: ComposeView
-    private var isExpanded by mutableStateOf(false)
+    private lateinit var overlayManager: OverlayManagerCompose
 
-    private val overlayUpdateReceiver = object : BroadcastReceiver() {
-        override fun onReceive(context: Context?, intent: Intent?) {
-            // You can trigger recomposition or update state here
-        }
-    }
+    private val serviceScope = CoroutineScope(SupervisorJob() + Dispatchers.Main)
 
-    override fun onBind(intent: Intent?) = null
+    private lateinit var quickSettingsManager: QuickSettingsManager
+    private lateinit var playlistManager: PlaylistTopicManager
+    private lateinit var segmentSwitcher: SegmentSwitcher
+
+    private lateinit var spotifyListener: SpotifyListener
+    private lateinit var ytMusicListener: YTMusicListener
+
+    private val pillPhase  = mutableStateOf(PillPhase.CIRCLE)
+    private val isExpanded = mutableStateOf(false)
+    private var touchBoxViewRef: ComposeView? = null
+
+    private lateinit var prefs: SharedPreferences
+
+    override fun onBind(intent: android.content.Intent?): IBinder? = null
 
     override fun onCreate() {
         super.onCreate()
 
-        windowManager = getSystemService(WINDOW_SERVICE) as WindowManager
+        savedStateRegistryController.performRestore(null)
+        lifecycleRegistry.currentState = Lifecycle.State.CREATED
 
-        composeView = ComposeView(this).apply {
+        windowManager = getSystemService(Context.WINDOW_SERVICE) as WindowManager
+        prefs = getSharedPreferences("fidland_prefs", Context.MODE_PRIVATE)
+
+        quickSettingsManager = QuickSettingsManager(serviceScope)
+        playlistManager      = PlaylistTopicManager(serviceScope)
+        segmentSwitcher      = SegmentSwitcher(
+            segmentCount     = 5,
+            scope            = serviceScope,
+            switchIntervalMs = 5000L
+        )
+
+        // Pass serviceScope so SpotifyListener can run its polling retry coroutine
+        spotifyListener  = SpotifyListener(this, serviceScope).also { it.start() }
+        ytMusicListener  = YTMusicListener(this, serviceScope).also { it.start() }
+
+        pillPhase.value  = resolveInitialPhase()
+
+        val tabs = buildTabList()
+
+        val pillView = ComposeView(this).apply {
+            setViewTreeLifecycleOwner(this@FidlandService)
+            setViewTreeSavedStateRegistryOwner(this@FidlandService)
             setContent {
-                PillOverlay(
-                    isExpanded = isExpanded,
-                    onExpand = { expandPill() },
-                    onCollapse = { collapsePill() }
+                FidlandRootUI(
+                    pillPhase       = pillPhase.value,
+                    segmentSwitcher = segmentSwitcher,
+                    tabs            = tabs,
+                    isExpanded      = isExpanded.value,
+                    onSwipeDown     = { isExpanded.value = true },
+                    onCollapse      = {
+                        isExpanded.value = false
+                        touchBoxViewRef?.let { overlayManager.addTouchBoxView(it) }
+                    }
                 )
             }
         }
 
-        val params = WindowManager.LayoutParams(
-            WindowManager.LayoutParams.WRAP_CONTENT,
-            WindowManager.LayoutParams.WRAP_CONTENT,
-            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O)
-                WindowManager.LayoutParams.TYPE_APPLICATION_OVERLAY
-            else
-                WindowManager.LayoutParams.TYPE_PHONE,
-            WindowManager.LayoutParams.FLAG_NOT_FOCUSABLE or
-                    WindowManager.LayoutParams.FLAG_LAYOUT_NO_LIMITS,
-            PixelFormat.TRANSLUCENT
-        )
-        params.gravity = Gravity.TOP or Gravity.START
-        windowManager.addView(composeView, params)
+        val touchBoxView = ComposeView(this).apply {
+            setViewTreeLifecycleOwner(this@FidlandService)
+            setViewTreeSavedStateRegistryOwner(this@FidlandService)
+            setContent {
+                PhaseTouchBox(
+                    onSwipeDown = {
+                        isExpanded.value = true
+                        overlayManager.removeTouchBoxView()
+                    }
+                )
+            }
+        }
 
-        val filter = IntentFilter("com.example.fiddler.FIDLAND_UPDATE_OVERLAY")
-        registerReceiver(overlayUpdateReceiver, filter)
+        overlayManager = OverlayManagerCompose(this, windowManager)
+        overlayManager.addPillView(pillView)
+        overlayManager.addTouchBoxView(touchBoxView)
+        touchBoxViewRef = touchBoxView
+
+        lifecycleRegistry.currentState = Lifecycle.State.RESUMED
     }
 
     override fun onDestroy() {
         super.onDestroy()
-        windowManager.removeView(composeView)
-        unregisterReceiver(overlayUpdateReceiver)
+        lifecycleRegistry.currentState = Lifecycle.State.DESTROYED
+        spotifyListener.stop()
+        ytMusicListener.stop()
+        overlayManager.removeAll()
+        serviceScope.cancel()
     }
 
-    private fun expandPill() {
-        if (isExpanded) return
-        isExpanded = true
-        // Optionally animate height using ValueAnimator if needed
+    private fun resolveInitialPhase(): PillPhase {
+        val netEnabled = prefs.getBoolean("network_traffic", false)
+        return if (netEnabled) PillPhase.LEFT_EXPANDED else PillPhase.CIRCLE
     }
 
-    private fun collapsePill() {
-        if (!isExpanded) return
-        isExpanded = false
-        // Optionally animate height using ValueAnimator if needed
-    }
-}
-
-@Composable
-fun PillOverlay(isExpanded: Boolean, onExpand: () -> Unit, onCollapse: () -> Unit) {
-    Box(
-        modifier = Modifier
-            .wrapContentSize()
-            .background(Color.DarkGray)
-            .padding(2.dp),
-        contentAlignment = Alignment.TopCenter
-    ) {
-        Row(
-            verticalAlignment = Alignment.CenterVertically,
-            horizontalArrangement = Arrangement.spacedBy(4.dp)
-        ) {
-            // Left segment with icons/text
-            Column(horizontalAlignment = Alignment.CenterHorizontally) {
-                Text("Upload", fontSize = 9.sp, color = Color.White)
-                Text("Download", fontSize = 9.sp, color = Color.White)
-                Row(horizontalArrangement = Arrangement.spacedBy(2.dp)) {
-                    repeat(4) { Box(modifier = Modifier.size(12.dp).background(Color.Black, CircleShape)) }
-                }
-            }
-
-            // Center camera mask
-            Box(
-                modifier = Modifier.size(25.dp).background(Color.Gray, CircleShape)
-            )
-
-            // Right segment
-            Row(horizontalArrangement = Arrangement.spacedBy(2.dp)) {
-                repeat(5) { Box(modifier = Modifier.size(12.dp).background(Color.Black, CircleShape)) }
-            }
-        }
-
-        if (isExpanded) {
-            // Expanded content
-            Column(modifier = Modifier.fillMaxWidth().padding(top = 6.dp)) {
-                val pagerState = rememberPagerState()
-                HorizontalPager(count = 1, state = pagerState, modifier = Modifier.height(200.dp)) { page ->
-                    Box(modifier = Modifier.fillMaxSize().background(Color.LightGray), contentAlignment = Alignment.Center) {
-                        Text("Page $page")
-                    }
-                }
-            }
-        }
+    private fun buildTabList(): List<DashboardTab> = buildList {
+        if (prefs.getBoolean("music_player", true))
+            add(DashboardTab("Music")    { MusicTopicCompose(this@FidlandService).Content() })
+        if (prefs.getBoolean("music_queue", true))
+            add(DashboardTab("Queue")    { PlaylistTopicCompose(this@FidlandService).Content() })
+        if (prefs.getBoolean("quick_settings", true))
+            add(DashboardTab("Settings") { QuickSettingsTopicCompose(this@FidlandService).Content() })
+        if (prefs.getInt("app_rows", 3) > 0)
+            add(DashboardTab("Apps")     { AppsTopic(this@FidlandService).Content() })
     }
 }

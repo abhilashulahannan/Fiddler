@@ -1,8 +1,11 @@
 package com.example.fiddler.subapps.Fidland.quicksettings
 
 import android.content.Context
+import android.content.Intent
+import android.provider.Settings
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.combinedClickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.Text
@@ -20,19 +23,36 @@ import com.google.accompanist.pager.HorizontalPager
 import com.google.accompanist.pager.rememberPagerState
 import com.example.fiddler.R
 
-
 data class QuickSettingItemCompose(
     val iconRes: Int,
-    val title: String
+    val label: String,
+    val systemSettingsAction: String? = null, // long-press destination
+    val onToggle: (Context) -> Unit = {}
 )
 
 class QuickSettingsTopicCompose(context: Context) : TopicPage(context) {
 
+    // Tiles — additions/removals will eventually come from FidlandScreen prefs.
+    // For now the list is hardcoded here; wire to prefs in a follow-up.
     private val items = listOf(
-        QuickSettingItemCompose(R.drawable.wifi_on, "Wi-Fi"),
-        QuickSettingItemCompose(R.drawable.blue, "Bluetooth"),
-        QuickSettingItemCompose(R.drawable.flashlight_on, "Flashlight")
-        // add more tiles as needed
+        QuickSettingItemCompose(
+            iconRes = R.drawable.wifi_on,
+            label = "Wi-Fi",
+            systemSettingsAction = Settings.ACTION_WIFI_SETTINGS,
+            onToggle = { ctx -> toggleWifi(ctx) }
+        ),
+        QuickSettingItemCompose(
+            iconRes = R.drawable.blue,
+            label = "Bluetooth",
+            systemSettingsAction = Settings.ACTION_BLUETOOTH_SETTINGS,
+            onToggle = { ctx -> toggleBluetooth(ctx) }
+        ),
+        QuickSettingItemCompose(
+            iconRes = R.drawable.flashlight_on,
+            label = "Torch",
+            systemSettingsAction = null,
+            onToggle = { ctx -> toggleTorch(ctx) }
+        )
     )
 
     private var currentPage by mutableStateOf(0)
@@ -46,32 +66,13 @@ class QuickSettingsTopicCompose(context: Context) : TopicPage(context) {
             state = pagerState,
             modifier = Modifier
                 .fillMaxWidth()
-                .height(100.dp) // adjust height as needed
+                .height(120.dp)
         ) { page ->
             val item = items[page]
-            Column(
-                modifier = Modifier
-                    .padding(8.dp)
-                    .background(Color.DarkGray, RoundedCornerShape(8.dp))
-                    .clickable { onQuickSettingClicked(item) }
-                    .padding(8.dp),
-                horizontalAlignment = Alignment.CenterHorizontally,
-                verticalArrangement = Arrangement.Center
-            ) {
-                Image(
-                    painter = painterResource(item.iconRes),
-                    contentDescription = item.title,
-                    modifier = Modifier.size(32.dp),
-                    contentScale = ContentScale.Fit
-                )
-                Spacer(modifier = Modifier.height(4.dp))
-                Text(
-                    text = item.title,
-                    color = Color.White,
-                    fontSize = 10.sp,
-                    maxLines = 1
-                )
-            }
+            QuickSettingTile(
+                item = item,
+                context = context
+            )
         }
 
         currentPage = pagerState.currentPage
@@ -85,7 +86,77 @@ class QuickSettingsTopicCompose(context: Context) : TopicPage(context) {
         currentPage = (currentPage - 1).coerceAtLeast(0)
     }
 
-    private fun onQuickSettingClicked(item: QuickSettingItemCompose) {
-        // Handle click logic here
+    // --- Toggle implementations ---
+    // Wi-Fi: direct toggle removed in Android 10+, open settings instead
+    private fun toggleWifi(ctx: Context) {
+        ctx.startActivity(
+            Intent(Settings.ACTION_WIFI_SETTINGS).apply {
+                flags = Intent.FLAG_ACTIVITY_NEW_TASK
+            }
+        )
+    }
+
+    private fun toggleBluetooth(ctx: Context) {
+        ctx.startActivity(
+            Intent(Settings.ACTION_BLUETOOTH_SETTINGS).apply {
+                flags = Intent.FLAG_ACTIVITY_NEW_TASK
+            }
+        )
+    }
+
+    private fun toggleTorch(ctx: Context) {
+        val cm = ctx.getSystemService(Context.CAMERA_SERVICE)
+                as android.hardware.camera2.CameraManager
+        try {
+            val cameraId = cm.cameraIdList[0]
+            // Simple toggle — track state in a companion val if you need
+            // to know current torch state
+            cm.setTorchMode(cameraId, true)
+        } catch (e: Exception) {
+            e.printStackTrace()
+        }
+    }
+}
+
+@Composable
+private fun QuickSettingTile(
+    item: QuickSettingItemCompose,
+    context: Context
+) {
+    Column(
+        modifier = Modifier
+            .padding(8.dp)
+            .fillMaxHeight()
+            .background(Color(0xFF1E1E1E), RoundedCornerShape(12.dp))
+            .combinedClickable(
+                onClick = { item.onToggle(context) },
+                onLongClick = {
+                    // Long-press → open relevant system settings page
+                    item.systemSettingsAction?.let { action ->
+                        context.startActivity(
+                            Intent(action).apply {
+                                flags = Intent.FLAG_ACTIVITY_NEW_TASK
+                            }
+                        )
+                    }
+                }
+            )
+            .padding(12.dp),
+        horizontalAlignment = Alignment.CenterHorizontally,
+        verticalArrangement = Arrangement.Center
+    ) {
+        Image(
+            painter = painterResource(item.iconRes),
+            contentDescription = item.label,
+            modifier = Modifier.size(32.dp),
+            contentScale = ContentScale.Fit
+        )
+        Spacer(modifier = Modifier.height(6.dp))
+        Text(
+            text = item.label,
+            color = Color.White,
+            fontSize = 10.sp,
+            maxLines = 1
+        )
     }
 }

@@ -1,62 +1,130 @@
 package com.example.fiddler.subapps.Fidland.music
 
+import android.content.ComponentName
 import android.content.Context
+import android.media.MediaMetadata
 import android.media.session.MediaController
 import android.media.session.MediaSessionManager
 import android.media.session.PlaybackState
-import android.os.Build
+import com.example.fiddler.subapps.Fidland.NotificationListenerService
+import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.Job
+import kotlinx.coroutines.delay
+import kotlinx.coroutines.launch
 
 /**
- * Listens to Spotify playback updates via MediaSession
- * and notifies a callback whenever track changes or playback state changes.
+ * Listens to Spotify's MediaSession via MediaSessionManager.
+ *
+ * Mirrors YTMusicListener's retry-polling approach so that if Spotify's
+ * session isn't active at start() time we still attach when it appears,
+ * rather than silently giving up.
+ *
+ * Lifecycle: call start() when FidlandService starts (or when notification
+ * listener permission is confirmed). Call stop() in onDestroy().
  */
 class SpotifyListener(
-    context: Context,
-    private val onTrackChanged: (MusicApp) -> Unit
+    private val context: Context,
+    private val scope: CoroutineScope
 ) {
-
-    private val mediaSessionManager =
-        context.getSystemService(Context.MEDIA_SESSION_SERVICE) as MediaSessionManager
+    companion object {
+        private const val POLL_INTERVAL_MS = 3000L
+    }
 
     private var controller: MediaController? = null
+    private var callback: MediaController.Callback? = null
+    private var pollJob: Job? = null
 
-    private val controllerCallback = object : MediaController.Callback() {
-        override fun onMetadataChanged(metadata: android.media.MediaMetadata?) {
-            metadata?.let {
-                val track = MusicApp(
-                    appName = "Spotify",
-                    appPackage = MusicAppController.SPOTIFY_PACKAGE,
-                    songTitle = it.getString(android.media.MediaMetadata.METADATA_KEY_TITLE) ?: "",
-                    artistName = it.getString(android.media.MediaMetadata.METADATA_KEY_ARTIST) ?: "",
-                    albumName = it.getString(android.media.MediaMetadata.METADATA_KEY_ALBUM) ?: "",
-                    totalMs = it.getLong(android.media.MediaMetadata.METADATA_KEY_DURATION).toInt(),
-                    currentMs = controller?.playbackState?.position?.toInt() ?: 0,
-                    isPlaying = controller?.playbackState?.state == PlaybackState.STATE_PLAYING
-                )
-                onTrackChanged(track)
+    private val sessionManager by lazy {
+        context.getSystemService(Context.MEDIA_SESSION_SERVICE) as MediaSessionManager
+    }
+
+    fun start() {
+        MusicAppsRepository.addApp(
+            MusicApp(packageName = MusicApp.SPOTIFY_PACKAGE, appName = "Spotify")
+        )
+        if (!attachToSession()) {
+            startPolling()
+        }
+    }
+
+    fun stop() {
+        pollJob?.cancel()
+        pollJob = null
+        callback?.let { controller?.unregisterCallback(it) }
+        controller = null
+        callback = null
+    }
+
+    private fun attachToSession(): Boolean {
+        return try {
+            val component = ComponentName(context, NotificationListenerService::class.java)
+            val sessions = sessionManager.getActiveSessions(component)
+            val spotifyController = sessions.firstOrNull {
+                it.packageName == MusicApp.SPOTIFY_PACKAGE
+            } ?: return false
+
+            controller = spotifyController
+
+            callback = object : MediaController.Callback() {
+                override fun onMetadataChanged(metadata: MediaMetadata?) {
+                    pushUpdate(metadata, controller?.playbackState)
+                }
+
+                override fun onPlaybackStateChanged(state: PlaybackState?) {
+                    pushUpdate(controller?.metadata, state)
+                }
+
+                override fun onSessionDestroyed() {
+                    callback?.let { controller?.unregisterCallback(it) }
+                    controller = null
+                    callback = null
+                    startPolling()
+                }
+            }
+
+            callback?.let { controller?.registerCallback(it) }
+
+            // Push current state immediately so UI isn't blank on attach
+            pushUpdate(controller?.metadata, controller?.playbackState)
+            true
+
+        } catch (e: SecurityException) {
+            false
+        }
+    }
+
+    private fun startPolling() {
+        if (pollJob?.isActive == true) return
+        pollJob = scope.launch {
+            while (true) {
+                delay(POLL_INTERVAL_MS)
+                if (attachToSession()) {
+                    pollJob?.cancel()
+                    break
+                }
             }
         }
-
-        override fun onPlaybackStateChanged(state: PlaybackState?) {
-            state?.let { refreshTrack() }
-        }
     }
 
-    init {
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.LOLLIPOP) {
-            val sessions = mediaSessionManager.getActiveSessions(null)
-            controller = sessions.find { it.packageName == MusicAppController.SPOTIFY_PACKAGE }
-            controller?.registerCallback(controllerCallback)
-            // Initial metadata refresh
-            refreshTrack()
-        }
-    }
+    private fun pushUpdate(metadata: MediaMetadata?, state: PlaybackState?) {
+        val isPlaying = state?.state == PlaybackState.STATE_PLAYING
 
-    private fun refreshTrack() {
-        controller?.metadata?.let { controllerCallback.onMetadataChanged(it) }
-    }
+        // Extract album art bitmap from metadata
+        val albumArt = metadata?.getBitmap(MediaMetadata.METADATA_KEY_ART)
+            ?: metadata?.getBitmap(MediaMetadata.METADATA_KEY_ALBUM_ART)
 
-    fun unregister() {
-        controller?.unregisterCallback(controllerCallback)
+        MusicAppsRepository.updateTrackInfo(
+            packageName      = MusicApp.SPOTIFY_PACKAGE,
+            songTitle        = metadata?.getString(MediaMetadata.METADATA_KEY_TITLE) ?: "",
+            artistName       = metadata?.getString(MediaMetadata.METADATA_KEY_ARTIST) ?: "",
+            albumName        = metadata?.getString(MediaMetadata.METADATA_KEY_ALBUM) ?: "",
+            isPlaying        = isPlaying,
+            currentMs        = state?.position?.toInt() ?: 0,
+            totalMs          = metadata?.getLong(MediaMetadata.METADATA_KEY_DURATION)
+                ?.toInt()?.coerceAtLeast(0) ?: 0,
+            positionBaseMs   = state?.position ?: 0L,
+            positionBaseTime = if (isPlaying) System.currentTimeMillis() else 0L,
+            albumArt         = albumArt
+        )
     }
 }

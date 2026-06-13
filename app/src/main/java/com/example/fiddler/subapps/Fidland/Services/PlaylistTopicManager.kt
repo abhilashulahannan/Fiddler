@@ -1,34 +1,26 @@
-package com.example.fiddler.subapps.Fidland.service
+package com.example.fiddler.subapps.Fidland.manager
 
-import android.app.Service
-import android.content.Intent
-import android.os.Binder
-import android.os.IBinder
+import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 
-class PlaylistTopicService : Service() {
-
-    // Binder for Activity/Fragment to connect
-    private val binder = PlaylistBinder()
+class PlaylistTopicManager(
+    private val scope: CoroutineScope // Pass FidlandService's serviceScope
+) {
 
     // Playlist data
     private val _playlist = MutableStateFlow<List<String>>(emptyList())
     val playlist: StateFlow<List<String>> = _playlist
 
-    // Current page
+    // Current page index
     private val _currentPage = MutableStateFlow(0)
     val currentPage: StateFlow<Int> = _currentPage
-
-    inner class PlaylistBinder : Binder() {
-        fun getService(): PlaylistTopicService = this@PlaylistTopicService
-    }
-
-    override fun onBind(intent: Intent?): IBinder = binder
 
     // Update playlist
     fun setPlaylist(pages: List<String>) {
         _playlist.value = pages
+        // Ensure current page is still valid
+        _currentPage.value = _currentPage.value.coerceAtMost(pages.size - 1)
     }
 
     // Programmatic page changes

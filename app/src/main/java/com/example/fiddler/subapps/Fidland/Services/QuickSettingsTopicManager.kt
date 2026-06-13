@@ -1,22 +1,12 @@
-package com.example.fiddler.subapps.Fidland.service
+package com.example.fiddler.subapps.Fidland.manager
 
-import android.app.Service
-import android.content.Intent
-import android.os.Binder
-import android.os.IBinder
+import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 
-class QuickSettingsService : Service() {
-
-    // Binder to allow Activity/Fragment to access the service
-    private val binder = QuickSettingsBinder()
-
-    inner class QuickSettingsBinder : Binder() {
-        fun getService(): QuickSettingsService = this@QuickSettingsService
-    }
-
-    override fun onBind(intent: Intent?): IBinder = binder
+class QuickSettingsManager(
+    private val scope: CoroutineScope // Pass FidlandService's serviceScope
+) {
 
     // Quick settings pages
     private val _pages = MutableStateFlow(listOf("Wi-Fi", "Bluetooth", "Airplane Mode"))
@@ -38,5 +28,7 @@ class QuickSettingsService : Service() {
     // Optional: update pages dynamically
     fun setPages(newPages: List<String>) {
         _pages.value = newPages
+        // Ensure current page is still valid
+        _currentPage.value = _currentPage.value.coerceAtMost(newPages.size - 1)
     }
 }

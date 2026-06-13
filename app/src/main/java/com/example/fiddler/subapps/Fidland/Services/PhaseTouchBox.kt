@@ -1,53 +1,52 @@
 package com.example.fiddler.subapps.Fidland.service
 
-import androidx.compose.foundation.background
-import androidx.compose.foundation.gestures.detectTapGestures
-import androidx.compose.foundation.layout.*
-import androidx.compose.runtime.*
+import androidx.compose.foundation.gestures.detectDragGestures
+import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.runtime.Composable
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.input.pointer.pointerInput
-import androidx.compose.ui.unit.dp
-import androidx.compose.ui.platform.LocalDensity
-import androidx.compose.animation.core.*
-import kotlinx.coroutines.delay
-import kotlinx.coroutines.launch
 
+/**
+ * Invisible touch-interception layer for swipe-down-to-expand.
+ *
+ * WHY THIS VIEW EXISTS SEPARATELY
+ * ────────────────────────────────
+ * The island sits in the status bar zone (y ≈ 0). Any downward swipe
+ * starting inside that zone is intercepted by the OS and opens the
+ * notification drawer before our overlay gets a chance to see it.
+ *
+ * This view is positioned by OverlayManagerCompose to sit JUST BELOW
+ * the status bar (y = statusBarHeight + islandHeight), so swipes that
+ * start here are no longer in the OS-controlled zone.
+ *
+ * It is sized to match the island width and a fixed touch height
+ * (TOUCH_BOX_HEIGHT_DP in IslandConfig) — just enough vertical space
+ * for a drag gesture to register.
+ *
+ * It is only ACTIVE (added to WindowManager) while the island is in
+ * a state where swipe-down should do something. OverlayManagerCompose
+ * adds/removes it as the phase changes.
+ *
+ * FLAG_NOT_TOUCH_MODAL lets all touches OUTSIDE this view pass through.
+ * FLAG_NOT_FOCUSABLE prevents it stealing keyboard focus.
+ * FLAG_LAYOUT_IN_SCREEN + FLAG_LAYOUT_NO_LIMITS let it position freely.
+ */
 @Composable
 fun PhaseTouchBox(
-    overlayX: Float = 0f,
-    overlayY: Float = 0f,
-    overlayHeight: Float = 0f,
-    widthDp: Float = 200f,
-    heightDp: Float = 75f,
-    gestureListener: suspend () -> Unit = {}
+    onSwipeDown: () -> Unit
 ) {
-    val scope = rememberCoroutineScope()
-    var flashColor by remember { mutableStateOf(Color.Transparent) }
-
-    val density = LocalDensity.current
-    val widthPx = with(density) { widthDp.dp.toPx() }
-    val heightPx = with(density) { heightDp.dp.toPx() }
-
     Box(
         modifier = Modifier
-            .offset(x = overlayX.dp, y = (overlayY + overlayHeight).dp)
-            .size(widthDp.dp, heightDp.dp)
-            .background(flashColor)
+            .fillMaxSize()
             .pointerInput(Unit) {
-                detectTapGestures(
-                    onTap = { scope.launch { gestureListener() } }
-                )
+                detectDragGestures { _, dragAmount ->
+                    // Only trigger on a meaningful downward drag
+                    if (dragAmount.y > 18f) {
+                        onSwipeDown()
+                    }
+                }
             }
     )
-
-    // Flash effect
-    suspend fun flash(duration: Long = 1000) {
-        flashColor = Color(0x80000000)
-        delay(duration)
-        flashColor = Color.Transparent
-    }
-
-    // Example usage: call flash from parent
-    // scope.launch { flash() }
+    // Transparent — no background. The box is purely a gesture target.
 }

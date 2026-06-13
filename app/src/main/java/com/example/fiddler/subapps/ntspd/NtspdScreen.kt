@@ -29,10 +29,9 @@ fun NtspdScreen() {
     val context = LocalContext.current
     val fontBody = FontFamily(Font(R.font.font_body))
     val fontHandwriting = FontFamily(Font(R.font.font_handwriting))
-    val maxOffsetDp = 100
-    val defaultCenterOffset = -25
 
-    var offset by remember { mutableStateOf(maxOffsetDp + defaultCenterOffset) }
+    val defaultCenterOffset = -25
+    var offset by remember { mutableStateOf(defaultCenterOffset) }
     var placement by remember { mutableStateOf("center") }
     val enableChecked = SubAppState.ntspdEnabled
 
@@ -198,6 +197,19 @@ fun NtspdScreen() {
 
         Spacer(modifier = Modifier.height(16.dp))
 
+        // Dynamic offset slider
+        val valueRange = when (placement) {
+            "left" -> 0f..200f
+            "center" -> -100f..100f
+            "right" -> -200f..0f
+            else -> 0f..200f
+        }
+
+        LaunchedEffect(placement) {
+            val newRange = valueRange
+            offset = offset.coerceIn(newRange.start.toInt(), newRange.endInclusive.toInt())
+        }
+
         Text(
             text = "Offset from notch/camera hole:",
             fontFamily = fontBody,
@@ -207,9 +219,9 @@ fun NtspdScreen() {
         )
 
         Slider(
-            value = offset.toFloat(),
+            value = offset.toFloat().coerceIn(valueRange.start, valueRange.endInclusive),
             onValueChange = { offset = it.toInt() },
-            valueRange = 0f..(maxOffsetDp * 2).toFloat(),
+            valueRange = valueRange,
             colors = SliderDefaults.colors(
                 thumbColor = Color.Black,
                 activeTrackColor = Color.DarkGray,
@@ -218,7 +230,12 @@ fun NtspdScreen() {
         )
 
         Text(
-            text = "$offset dp",
+            text = when (placement) {
+                "left" -> "Offset: ${offset} dp (Rightward)"
+                "center" -> "Offset: ${offset} dp (± from center)"
+                "right" -> "Offset: ${offset} dp (Leftward)"
+                else -> "Offset: ${offset} dp"
+            },
             fontFamily = fontHandwriting,
             fontSize = 18.sp,
             color = MaterialTheme.colorScheme.onSurface

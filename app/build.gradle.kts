@@ -3,7 +3,7 @@ plugins {
     alias(libs.plugins.kotlin.android)
 
     // Compose Compiler plugin for Kotlin 2.0+
-    id("org.jetbrains.kotlin.plugin.compose") version "2.0.0"
+    id("org.jetbrains.kotlin.plugin.compose") version "2.2.10"
 }
 
 android {
