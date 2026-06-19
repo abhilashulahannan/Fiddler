@@ -12,16 +12,6 @@ import kotlinx.coroutines.Job
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 
-/**
- * Listens to YT Music's MediaSession.
- *
- * YT Music does not always hold a persistent MediaSession the way Spotify does,
- * so we combine two strategies:
- *
- *   1. Direct callback — attaches when a session is already active at start().
- *   2. Polling fallback — polls every [POLL_INTERVAL_MS] until a session
- *      appears, then attaches the callback and cancels the poll.
- */
 class YTMusicListener(
     private val context: Context,
     private val scope: CoroutineScope
@@ -105,7 +95,6 @@ class YTMusicListener(
     }
 
     private fun pushUpdate(metadata: MediaMetadata?, state: PlaybackState?) {
-        // Only push if we have actual track data — never push empty/dummy updates
         val title = metadata?.getString(MediaMetadata.METADATA_KEY_TITLE)
         if (title.isNullOrBlank()) return
 
@@ -113,6 +102,17 @@ class YTMusicListener(
 
         val albumArt = metadata.getBitmap(MediaMetadata.METADATA_KEY_ART)
             ?: metadata.getBitmap(MediaMetadata.METADATA_KEY_ALBUM_ART)
+
+        val customActions = state?.customActions?.map {
+            val label = it.name?.toString() ?: ""
+            CustomActionInfo(
+                action   = it.action,
+                name     = label,
+                isActive = label.contains("remove", ignoreCase = true) ||
+                        label.contains("saved", ignoreCase = true) ||
+                        label.contains("unlike", ignoreCase = true)
+            )
+        } ?: emptyList()
 
         MusicAppsRepository.updateTrackInfo(
             packageName      = MusicApp.YTMUSIC_PACKAGE,
@@ -125,7 +125,8 @@ class YTMusicListener(
                 .toInt().coerceAtLeast(0),
             positionBaseMs   = state?.position ?: 0L,
             positionBaseTime = if (isPlaying) System.currentTimeMillis() else 0L,
-            albumArt         = albumArt
+            albumArt         = albumArt,
+            customActions    = customActions,
         )
     }
 }

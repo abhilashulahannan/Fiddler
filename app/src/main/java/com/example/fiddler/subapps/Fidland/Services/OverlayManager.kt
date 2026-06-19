@@ -8,6 +8,7 @@ import android.view.WindowManager
 import androidx.compose.ui.platform.ComposeView
 import androidx.compose.ui.unit.Dp
 import com.example.fiddler.subapps.Fidland.ui.IslandConfig
+import com.example.fiddler.subapps.Fidland.ui.PillPhase
 
 /**
  * Manages the two WindowManager views for the Fidland island.
@@ -68,10 +69,15 @@ class OverlayManagerCompose(
     // ── Touch-box view params ─────────────────────────────────────────────
     // Width = current island pill width (state 1/2/3 sized, not full dashboard).
     // Height = TOUCH_BOX_HEIGHT_DP — just enough for a drag to register.
-    // Y = below the island in its pill state (status bar bottom + pill height).
-    // This places it OUTSIDE the OS-controlled status bar zone.
+    // Y = below the island's CURRENT lower edge, which depends on [phase].
+    // States 1/2/3/BOTH are all BASE_SIZE tall, so the box sits right under
+    // the pill. States 4/5 are much taller (dashboard / phs3 controls panel),
+    // so the box must drop down to the pill's actual bottom edge in those
+    // states — otherwise it sits on top of State 5's scrollable content
+    // (e.g. NavigationPhs3Handler's upcoming-turns list) and steals its
+    // scroll drags. This places it OUTSIDE the OS-controlled status bar zone.
     // X anchored same as island view so it stays visually centered.
-    private fun touchBoxParams() = WindowManager.LayoutParams(
+    private fun touchBoxParams(phase: PillPhase = PillPhase.CIRCLE) = WindowManager.LayoutParams(
         IslandConfig.STATE2_WIDTH.dpToPx(),   // wide enough for the pill in any pill state
         IslandConfig.TOUCH_BOX_HEIGHT_DP.dpToPx(),
         overlayType(),
@@ -84,8 +90,8 @@ class OverlayManagerCompose(
         gravity = Gravity.TOP or Gravity.START
         // Center the touch box horizontally over the hole-punch
         x = screenWidthPx() / 2 - IslandConfig.STATE2_WIDTH.dpToPx() / 2
-        // Position: below the island.
-        y = islandTopY() + IslandConfig.BASE_SIZE.dpToPx() + (4 * context.resources.displayMetrics.density).toInt()
+        // Position: below the island's lower edge for the given phase.
+        y = islandTopY() + IslandConfig.heightForPhase(phase).dpToPx() + (4 * context.resources.displayMetrics.density).toInt()
     }
 
     // ── Public API ────────────────────────────────────────────────────────
@@ -96,10 +102,23 @@ class OverlayManagerCompose(
         windowManager.addView(view, islandParams())
     }
 
-    fun addTouchBoxView(view: ComposeView) {
+    fun addTouchBoxView(view: ComposeView, phase: PillPhase = PillPhase.CIRCLE) {
         if (view.isAttachedToWindow) return
         touchBoxView = view
-        windowManager.addView(view, touchBoxParams())
+        windowManager.addView(view, touchBoxParams(phase))
+    }
+
+    /**
+     * Moves the existing touch-box view to sit at the pill's CURRENT lower
+     * edge for [phase], without removing/re-adding it. Call this on every
+     * pillPhase transition (especially entering/leaving EXPANDED_PHS3 /
+     * DASHBOARD) so the touch box tracks the pill as it grows/shrinks and
+     * never overlaps scrollable State 5 content above it.
+     */
+    fun repositionTouchBoxForPhase(phase: PillPhase) {
+        val view = touchBoxView ?: return
+        if (!view.isAttachedToWindow) return
+        windowManager.updateViewLayout(view, touchBoxParams(phase))
     }
 
     fun removeTouchBoxView() {
@@ -117,6 +136,24 @@ class OverlayManagerCompose(
     // Alias so FidlandService compiles without change
     fun addPillView(view: ComposeView) = addIslandView(view)
 
+    /** Moves the pill view off the top of the screen (visually hidden). */
+    fun hidePill() {
+        val view = islandView ?: return
+        if (!view.isAttachedToWindow) return
+        val params = view.layoutParams as WindowManager.LayoutParams
+        params.y = -IslandConfig.BASE_SIZE.dpToPx() * 4  // well above the screen
+        windowManager.updateViewLayout(view, params)
+    }
+
+    /** Restores the pill view to its normal on-screen position. */
+    fun showPill() {
+        val view = islandView ?: return
+        if (!view.isAttachedToWindow) return
+        val params = view.layoutParams as WindowManager.LayoutParams
+        params.y = islandTopY()
+        windowManager.updateViewLayout(view, params)
+    }
+
     // ── Positioning math ──────────────────────────────────────────────────
 
     /**
@@ -133,7 +170,7 @@ class OverlayManagerCompose(
      */
     private fun islandViewLeftX(): Int {
         val screenWidth = screenWidthPx()
-        return screenWidth / 2 - islandViewWidthPx() / 2
+        return screenWidth / 2 + IslandConfig.HOLE_PUNCH_X_OFFSET.dpToPx() - islandViewWidthPx() / 2
     }
 
     /**
@@ -158,18 +195,56 @@ class OverlayManagerCompose(
 
     private fun statusBarHeight(): Int {
         val id = context.resources.getIdentifier("status_bar_height", "dimen", "android")
-        return if (id > 0) context.resources.getDimensionPixelSize(id) else 0
+        val fromResource = if (id > 0) context.resources.getDimensionPixelSize(id) else 0
+        // getIdentifier returns 0 on some devices/API levels, leaving the pill
+        // positioned at y=0 — hidden behind the status bar. Fall back to a
+        // reasonable default (24dp) so the pill is always visible.
+        val fallbackPx = (24 * context.resources.displayMetrics.density).toInt()
+        return if (fromResource > 0) fromResource else fallbackPx
     }
 
     private fun screenWidthPx(): Int =
         context.resources.displayMetrics.widthPixels
 
-    private fun overlayType() =
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O)
-            WindowManager.LayoutParams.TYPE_APPLICATION_OVERLAY
-        else
-            @Suppress("DEPRECATION")
-            WindowManager.LayoutParams.TYPE_PHONE
+    /**
+     * TYPE_ACCESSIBILITY_OVERLAY is the only overlay window type that can draw
+     * above SystemUI's status bar layer (clock/battery/signal icons). It is
+     * ONLY honored when [windowManager] was obtained from the connected
+     * FidlandAccessibilityService's own Context — that Context is what holds
+     * the accessibility window token. A WindowManager from any other Context
+     * (the app's plain Service, Application, etc.) has no such token, and
+     * passing TYPE_ACCESSIBILITY_OVERLAY through it makes addView() throw
+     * WindowManager.BadTokenException, crashing the caller.
+     *
+     * FidlandService is responsible for actually sourcing [windowManager] from
+     * FidlandAccessibilityService.instance when available (see its onCreate).
+     * This getter only decides which window type matches the WindowManager it
+     * was actually given — if the accessibility service isn't connected,
+     * [windowManager] here is a fallback (token-less) one, so we must request
+     * TYPE_APPLICATION_OVERLAY instead, which works with a plain Context but
+     * requires the user to have granted SYSTEM_ALERT_WINDOW ("draw over other
+     * apps"). If neither the accessibility service nor SYSTEM_ALERT_WINDOW are
+     * granted, addView() will still throw — that's expected; the pill simply
+     * isn't allowed to overlay anything yet. PermissionsActivity should keep
+     * the pill from starting at all in that case.
+     *
+     * Requires the user to manually enable the accessibility service once in
+     * Settings > Accessibility. Behavior on top of the status bar is also
+     * OEM-dependent (stock/Pixel honors it reliably; some Samsung/MIUI builds
+     * may still clip it) — test on target devices.
+     */
+    private fun overlayType(): Int {
+        val accessibilityServiceConnected = FidlandAccessibilityService.instance != null
+        return when {
+            Build.VERSION.SDK_INT >= Build.VERSION_CODES.O && accessibilityServiceConnected ->
+                WindowManager.LayoutParams.TYPE_ACCESSIBILITY_OVERLAY
+            Build.VERSION.SDK_INT >= Build.VERSION_CODES.O ->
+                WindowManager.LayoutParams.TYPE_APPLICATION_OVERLAY
+            else ->
+                @Suppress("DEPRECATION")
+                WindowManager.LayoutParams.TYPE_PHONE
+        }
+    }
 
     private fun Dp.dpToPx(): Int =
         (value * context.resources.displayMetrics.density).toInt()

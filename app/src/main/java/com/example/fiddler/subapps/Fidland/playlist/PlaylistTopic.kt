@@ -1,6 +1,7 @@
 package com.example.fiddler.subapps.Fidland.playlist
 
 import android.content.Context
+import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
@@ -12,7 +13,10 @@ import androidx.compose.material3.Text
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.asImageBitmap
+import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
@@ -21,6 +25,7 @@ import com.example.fiddler.subapps.Fidland.TopicPage
 import com.example.fiddler.subapps.Fidland.music.MusicApp
 import com.example.fiddler.subapps.Fidland.music.MusicAppController
 import com.example.fiddler.subapps.Fidland.music.MusicAppsRepository
+import com.example.fiddler.subapps.Fidland.music.QueueTrackInfo
 import com.google.accompanist.pager.HorizontalPager
 import com.google.accompanist.pager.rememberPagerState
 
@@ -30,13 +35,13 @@ import com.google.accompanist.pager.rememberPagerState
  * One pager page per registered music app (Spotify, YT Music, etc.).
  * Swipe left/right to switch between apps.
  *
- * Queue data sourced from MusicAppsRepository. The queue track list
- * is a best-effort read — Spotify exposes queue via MediaSession queue
- * items; YT Music does not reliably. Tracks that can't be fetched show
- * a "Queue unavailable" message rather than crashing or showing stale data.
+ * Queue data sourced from MusicAppsRepository (app.queue). Spotify publishes
+ * its "up next" queue via MediaController.queue / onQueueChanged; YT Music's
+ * session does not expose one, so app.queue stays empty there and a
+ * "Queue unavailable" message is shown instead of dummy data.
  *
- * Tapping a track sends a skipToQueueItem() command via MediaController.
- * This works for Spotify; YT Music may ignore it depending on version.
+ * Tapping a queue track sends skipToQueueItem() via MediaController.
+ * This works for Spotify; YT Music has no queue to tap into.
  */
 class PlaylistTopicCompose(context: Context) : TopicPage(context) {
 
@@ -51,6 +56,12 @@ class PlaylistTopicCompose(context: Context) : TopicPage(context) {
             EmptyState("No music apps connected")
             return
         }
+
+        // Snap to the playing app every time Content() is entered fresh.
+        // rememberPagerState only reads initialPage once, so currentPage
+        // must be set before calling it.
+        val playingIndex = apps.indexOfFirst { it.isPlaying }.takeIf { it >= 0 }
+        if (playingIndex != null) currentPage = playingIndex
 
         val pagerState = rememberPagerState(
             initialPage = currentPage.coerceAtMost(apps.size - 1)
@@ -111,13 +122,14 @@ class PlaylistTopicCompose(context: Context) : TopicPage(context) {
                 Spacer(modifier = Modifier.height(4.dp))
             }
 
-            // Queue list
-            // Queue items are not yet populated from MediaSession —
-            // that requires getQueue() on the MediaController which
-            // needs to be wired in a follow-up.
-            // For now we show the current track and a clear unavailable message
-            // rather than dummy data.
-            QueueUnavailableMessage(app = app)
+            // Queue list — populated from MediaController.queue (Spotify only).
+            // YT Music's session doesn't expose a queue, so app.queue stays
+            // empty there and we fall back to the unavailable message.
+            if (app.queue.isNotEmpty()) {
+                QueueList(app = app)
+            } else {
+                QueueUnavailableMessage(app = app)
+            }
         }
     }
 
@@ -158,13 +170,70 @@ class PlaylistTopicCompose(context: Context) : TopicPage(context) {
     }
 
     @Composable
+    private fun QueueList(app: MusicApp) {
+        LazyColumn(
+            modifier = Modifier.fillMaxSize()
+        ) {
+            itemsIndexed(app.queue) { _, track ->
+                QueueRow(app = app, track = track)
+                Spacer(modifier = Modifier.height(4.dp))
+            }
+        }
+    }
+
+    @Composable
+    private fun QueueRow(app: MusicApp, track: QueueTrackInfo) {
+        Row(
+            modifier = Modifier
+                .fillMaxWidth()
+                .clickable { controller.skipToQueueItem(app, track.queueId) }
+                .padding(vertical = 6.dp),
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            val art = track.albumArt
+            Box(
+                modifier = Modifier
+                    .size(32.dp)
+                    .clip(RoundedCornerShape(4.dp))
+                    .background(Color(0xFF1A1A1A))
+            ) {
+                if (art != null) {
+                    Image(
+                        bitmap             = art.asImageBitmap(),
+                        contentDescription = "Track Art",
+                        contentScale       = ContentScale.Crop,
+                        modifier           = Modifier.fillMaxSize()
+                    )
+                }
+            }
+            Spacer(modifier = Modifier.width(8.dp))
+            Column(modifier = Modifier.weight(1f)) {
+                Text(
+                    text = track.title.ifBlank { "—" },
+                    color = Color.White,
+                    fontSize = 12.sp,
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis
+                )
+                Text(
+                    text = track.artist.ifBlank { "—" },
+                    color = Color(0xFFAAAAAA),
+                    fontSize = 10.sp,
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis
+                )
+            }
+        }
+    }
+
+    @Composable
     private fun QueueUnavailableMessage(app: MusicApp) {
         // Spotify exposes queue via controller.queue — wire this up
         // once MediaController getQueue() is integrated.
         // YT Music does not expose queue items via MediaSession.
         val message = when (app.packageName) {
             MusicApp.SPOTIFY_PACKAGE ->
-                "Queue sync coming soon"
+                "Queue empty or unavailable"
             MusicApp.YTMUSIC_PACKAGE ->
                 "YT Music queue unavailable\nvia MediaSession"
             else ->

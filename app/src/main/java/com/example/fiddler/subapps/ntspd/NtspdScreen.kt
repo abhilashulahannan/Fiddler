@@ -20,9 +20,6 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.example.fiddler.R
 import com.example.fiddler.core.SubAppState
-import kotlinx.coroutines.flow.collectLatest
-import kotlinx.coroutines.flow.distinctUntilChanged
-import kotlinx.coroutines.launch
 
 @Composable
 fun NtspdScreen() {
@@ -30,26 +27,49 @@ fun NtspdScreen() {
     val fontBody = FontFamily(Font(R.font.font_body))
     val fontHandwriting = FontFamily(Font(R.font.font_handwriting))
 
-    val defaultCenterOffset = -25
-    var offset by remember { mutableStateOf(defaultCenterOffset) }
-    var placement by remember { mutableStateOf("center") }
+    val prefs = remember {
+        context.getSharedPreferences("fiddler_prefs", android.content.Context.MODE_PRIVATE)
+    }
+
+    // Restore persisted settings
+    var placement by remember { mutableStateOf(prefs.getString("ntspd_placement", "center") ?: "center") }
+    var offset by remember { mutableIntStateOf(prefs.getInt("ntspd_offset", -25)) }
+
     val enableChecked = SubAppState.ntspdEnabled
 
-    val scrollState = rememberScrollState()
+    val valueRange = when (placement) {
+        "left"  -> 0f..200f
+        "center" -> -100f..100f
+        else    -> -200f..0f
+    }
 
-    // Update overlay when parameters change
-    LaunchedEffect(offset, placement, enableChecked.value) {
-        snapshotFlow { Triple(offset, placement, enableChecked.value) }
-            .distinctUntilChanged()
-            .collectLatest { (newOffset, newPlacement, enabled) ->
-                if (enabled) updateOverlay(context, newOffset, newPlacement)
+    // Clamp offset when placement changes
+    LaunchedEffect(placement) {
+        offset = offset.coerceIn(valueRange.start.toInt(), valueRange.endInclusive.toInt())
+    }
+
+    // Start/stop service and push settings changes
+    LaunchedEffect(enableChecked.value, offset, placement) {
+        if (enableChecked.value) {
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M && !Settings.canDrawOverlays(context)) {
+                Toast.makeText(context, "Overlay permission required", Toast.LENGTH_SHORT).show()
+                SubAppState.ntspdEnabled.value = false
+                return@LaunchedEffect
             }
+            val intent = Intent(context, NetSpeedService::class.java).apply {
+                putExtra("placement", placement)
+                putExtra("offset", offset)
+            }
+            context.startService(intent)
+        } else {
+            context.stopService(Intent(context, NetSpeedService::class.java))
+        }
     }
 
     Column(
         modifier = Modifier
             .fillMaxSize()
-            .verticalScroll(scrollState)
+            .verticalScroll(rememberScrollState())
             .padding(16.dp),
         horizontalAlignment = Alignment.Start
     ) {
@@ -89,11 +109,11 @@ fun NtspdScreen() {
 
         Spacer(modifier = Modifier.height(16.dp))
 
-        // Enable checkbox
+        // Enable toggle
         Row(verticalAlignment = Alignment.CenterVertically) {
             Checkbox(
-                checked = SubAppState.ntspdEnabled.value,
-                onCheckedChange = { SubAppState.ntspdEnabled.value = it },
+                checked = enableChecked.value,
+                onCheckedChange = { enableChecked.value = it },
                 colors = CheckboxDefaults.colors(checkedColor = MaterialTheme.colorScheme.primary)
             )
             Text(
@@ -105,122 +125,76 @@ fun NtspdScreen() {
             )
         }
 
-        Spacer(modifier = Modifier.height(16.dp))
-
-        // Overlay permission button
-        OutlinedButton(
-            onClick = {
-                if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M &&
-                    !Settings.canDrawOverlays(context)
-                ) {
+        // Overlay permission button — only shown when permission is missing
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M && !Settings.canDrawOverlays(context)) {
+            Spacer(modifier = Modifier.height(12.dp))
+            OutlinedButton(
+                onClick = {
                     val intent = Intent(
                         Settings.ACTION_MANAGE_OVERLAY_PERMISSION,
                         Uri.parse("package:${context.packageName}")
                     )
                     context.startActivity(intent)
-                } else {
-                    Toast.makeText(
-                        context,
-                        "Overlay permission already granted",
-                        Toast.LENGTH_SHORT
-                    ).show()
-                }
-            },
-            shape = MaterialTheme.shapes.medium,
-            border = ButtonDefaults.outlinedButtonBorder.copy(width = 1.dp),
-            modifier = Modifier.padding(top = 8.dp)
-        ) {
-            Text(
-                text = "Request Overlay Permission",
-                fontFamily = fontHandwriting,
-                fontSize = 18.sp,
-                color = Color.Black
-            )
+                },
+                shape = MaterialTheme.shapes.medium,
+                border = ButtonDefaults.outlinedButtonBorder.copy(width = 1.dp)
+            ) {
+                Text(
+                    text = "Grant Overlay Permission",
+                    fontFamily = fontHandwriting,
+                    fontSize = 18.sp,
+                    color = Color.Black
+                )
+            }
         }
 
-        Spacer(modifier = Modifier.height(16.dp))
+        Spacer(modifier = Modifier.height(24.dp))
 
         Text(
             text = "Placement in status bar:",
             fontFamily = fontBody,
             fontSize = 22.sp,
-            color = MaterialTheme.colorScheme.onSurface,
-            modifier = Modifier.padding(top = 5.dp)
+            color = MaterialTheme.colorScheme.onSurface
         )
 
         Row(verticalAlignment = Alignment.CenterVertically) {
-            RadioButton(
-                selected = placement == "left",
-                onClick = { placement = "left" },
-                colors = RadioButtonDefaults.colors(
-                    selectedColor = Color.Black,
-                    unselectedColor = Color.Black
+            listOf("left" to "Left", "center" to "Center", "right" to "Right").forEach { (value, label) ->
+                RadioButton(
+                    selected = placement == value,
+                    onClick = {
+                        placement = value
+                        prefs.edit().putString("ntspd_placement", value).apply()
+                    },
+                    colors = RadioButtonDefaults.colors(
+                        selectedColor = Color.Black,
+                        unselectedColor = Color.Black
+                    )
                 )
-            )
-            Text(
-                text = "Left",
-                fontFamily = fontHandwriting,
-                fontSize = 20.sp,
-                color = MaterialTheme.colorScheme.onSurface
-            )
-
-            RadioButton(
-                selected = placement == "center",
-                onClick = { placement = "center" },
-                colors = RadioButtonDefaults.colors(
-                    selectedColor = Color.Black,
-                    unselectedColor = Color.Black
+                Text(
+                    text = label,
+                    fontFamily = fontHandwriting,
+                    fontSize = 20.sp,
+                    color = MaterialTheme.colorScheme.onSurface,
+                    modifier = Modifier.padding(end = 8.dp)
                 )
-            )
-            Text(
-                text = "Center",
-                fontFamily = fontHandwriting,
-                fontSize = 20.sp,
-                color = MaterialTheme.colorScheme.onSurface
-            )
-
-            RadioButton(
-                selected = placement == "right",
-                onClick = { placement = "right" },
-                colors = RadioButtonDefaults.colors(
-                    selectedColor = Color.Black,
-                    unselectedColor = Color.Black
-                )
-            )
-            Text(
-                text = "Right",
-                fontFamily = fontHandwriting,
-                fontSize = 20.sp,
-                color = MaterialTheme.colorScheme.onSurface
-            )
+            }
         }
 
         Spacer(modifier = Modifier.height(16.dp))
-
-        // Dynamic offset slider
-        val valueRange = when (placement) {
-            "left" -> 0f..200f
-            "center" -> -100f..100f
-            "right" -> -200f..0f
-            else -> 0f..200f
-        }
-
-        LaunchedEffect(placement) {
-            val newRange = valueRange
-            offset = offset.coerceIn(newRange.start.toInt(), newRange.endInclusive.toInt())
-        }
 
         Text(
             text = "Offset from notch/camera hole:",
             fontFamily = fontBody,
             fontSize = 22.sp,
-            color = MaterialTheme.colorScheme.onSurface,
-            modifier = Modifier.padding(top = 5.dp)
+            color = MaterialTheme.colorScheme.onSurface
         )
 
         Slider(
-            value = offset.toFloat().coerceIn(valueRange.start, valueRange.endInclusive),
-            onValueChange = { offset = it.toInt() },
+            value = offset.toFloat(),
+            onValueChange = {
+                offset = it.toInt()
+                prefs.edit().putInt("ntspd_offset", offset).apply()
+            },
             valueRange = valueRange,
             colors = SliderDefaults.colors(
                 thumbColor = Color.Black,
@@ -231,10 +205,9 @@ fun NtspdScreen() {
 
         Text(
             text = when (placement) {
-                "left" -> "Offset: ${offset} dp (Rightward)"
-                "center" -> "Offset: ${offset} dp (± from center)"
-                "right" -> "Offset: ${offset} dp (Leftward)"
-                else -> "Offset: ${offset} dp"
+                "left"  -> "Offset: $offset dp (Rightward)"
+                "center" -> "Offset: $offset dp (± from center)"
+                else    -> "Offset: $offset dp (Leftward)"
             },
             fontFamily = fontHandwriting,
             fontSize = 18.sp,
@@ -243,19 +216,4 @@ fun NtspdScreen() {
 
         Spacer(modifier = Modifier.height(32.dp))
     }
-}
-
-private fun updateOverlay(context: android.content.Context, offset: Int, placement: String) {
-    if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M &&
-        !Settings.canDrawOverlays(context)
-    ) {
-        Toast.makeText(context, "Overlay permission required", Toast.LENGTH_SHORT).show()
-        return
-    }
-
-    val intent = Intent(context, NetSpeedService::class.java).apply {
-        putExtra("placement", placement)
-        putExtra("offset", offset)
-    }
-    context.startService(intent)
 }

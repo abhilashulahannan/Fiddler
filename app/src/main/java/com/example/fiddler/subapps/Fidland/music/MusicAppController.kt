@@ -77,6 +77,32 @@ class MusicAppController(private val context: Context) {
         getController(app)?.transportControls?.seekTo(positionMs.toLong())
     }
 
+    /**
+     * Fires a "toggle favorite"-style custom action exposed via
+     * MediaController.playbackState.customActions (e.g. Spotify's
+     * "Add to / Remove from Your Library", YT Music's "like").
+     * No-op if no such action is currently available.
+     */
+    fun toggleFavorite(app: MusicApp, action: CustomActionInfo) {
+        getController(app)?.transportControls?.sendCustomAction(action.action, null)
+    }
+
+    /**
+     * Jumps playback to a specific queue entry (Spotify only — see
+     * MusicApp.queue / QueueTrackInfo for where queueId comes from).
+     */
+    fun skipToQueueItem(app: MusicApp, queueId: Long) {
+        getController(app)?.transportControls?.skipToQueueItem(queueId)
+    }
+
+    /** Opens the music app's launcher activity, e.g. when album art is tapped. */
+    fun launchApp(app: MusicApp) {
+        val intent = context.packageManager.getLaunchIntentForPackage(app.packageName)
+            ?: return
+        intent.addFlags(android.content.Intent.FLAG_ACTIVITY_NEW_TASK)
+        context.startActivity(intent)
+    }
+
     // KeyEvent fallback — works without notification listener permission
     private fun sendKeyEvent(app: MusicApp, keyCode: Int) {
         val intent = android.content.Intent(android.content.Intent.ACTION_MEDIA_BUTTON).apply {

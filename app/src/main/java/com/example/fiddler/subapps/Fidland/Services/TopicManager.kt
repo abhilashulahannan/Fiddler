@@ -125,7 +125,7 @@ fun DashboardTabHost(
                 Box(
                     modifier = Modifier
                         .fillMaxSize()
-                        .padding(horizontal = 12.dp, vertical = 8.dp)
+                        .padding(horizontal = 8.dp, vertical = 8.dp)
                 ) {
                     tabs[index].content()
                 }

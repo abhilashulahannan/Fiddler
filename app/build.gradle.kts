@@ -1,9 +1,8 @@
 plugins {
     alias(libs.plugins.android.application)
     alias(libs.plugins.kotlin.android)
-
-    // Compose Compiler plugin for Kotlin 2.0+
-    id("org.jetbrains.kotlin.plugin.compose") version "2.2.10"
+    alias(libs.plugins.kotlin.compose)
+    alias(libs.plugins.ksp)
 }
 
 android {
@@ -42,16 +41,16 @@ android {
         viewBinding = true
         compose = true
     }
-
-    composeOptions {
-        kotlinCompilerExtensionVersion = "2.0.0"
-    }
 }
 
 dependencies {
+    implementation(libs.androidx.animation)
     // AndroidX / Core
     implementation(libs.androidx.core.ktx)
     implementation(libs.androidx.appcompat)
+    implementation(libs.androidx.foundation.layout)
+    implementation(libs.androidx.material3)
+    implementation(libs.androidx.ui.unit)
     implementation(libs.material)
     implementation(libs.androidx.activity)
     implementation(libs.androidx.constraintlayout)
@@ -62,19 +61,17 @@ dependencies {
     androidTestImplementation(libs.androidx.junit)
     androidTestImplementation(libs.androidx.espresso.core)
 
-    // Other libraries
-    implementation("androidx.core:core-ktx:1.12.0")
+    // ViewPager2 / DocumentFile / Broadcasts
     implementation("androidx.viewpager2:viewpager2:1.1.0")
     implementation("androidx.documentfile:documentfile:1.1.0")
-    implementation("com.google.android.material:material:1.11.0")
     implementation("androidx.localbroadcastmanager:localbroadcastmanager:1.1.0")
 
-    // ✅ Jetpack Compose BOM (manages all Compose versions)
+    // Jetpack Compose BOM (manages all Compose versions)
     val composeBom = platform("androidx.compose:compose-bom:2024.10.01")
     implementation(composeBom)
     androidTestImplementation(composeBom)
 
-    // Compose dependencies (version managed by BOM)
+    // Compose
     implementation("androidx.activity:activity-compose:1.9.3")
     implementation("androidx.compose.ui:ui")
     implementation("androidx.compose.material3:material3")
@@ -87,4 +84,20 @@ dependencies {
 
     // Lottie Animation
     implementation("com.airbnb.android:lottie-compose:6.1.0")
+
+    // Room (using version catalog — 2.7.0 fixes the KSP2 "unexpected jvm signature V" bug)
+    implementation(libs.room.runtime)
+    implementation(libs.room.ktx)
+    ksp(libs.room.compiler)
+
+    // coil
+    implementation("io.coil-kt:coil-compose:2.6.0")
+
+    //gms
+    implementation("com.google.android.gms:play-services-location:21.3.0")
+    implementation("org.jetbrains.kotlinx:kotlinx-coroutines-play-services:1.8.1")  // ← add this
+
+    //icons
+    implementation("androidx.compose.material:material-icons-extended")
+
 }

@@ -1,0 +1,5 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!-- Merge this <string> entry into your existing res/values/strings.xml -->
+    <string name="fidland_accessibility_service_description">Lets the Fidland pill render above the status bar icons. This service does not read screen content.</string>
+</resources>

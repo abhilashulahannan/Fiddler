@@ -4,6 +4,7 @@ import android.content.ComponentName
 import android.content.Context
 import android.media.MediaMetadata
 import android.media.session.MediaController
+import android.media.session.MediaSession
 import android.media.session.MediaSessionManager
 import android.media.session.PlaybackState
 import com.example.fiddler.subapps.Fidland.NotificationListenerService
@@ -12,16 +13,6 @@ import kotlinx.coroutines.Job
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 
-/**
- * Listens to Spotify's MediaSession via MediaSessionManager.
- *
- * Mirrors YTMusicListener's retry-polling approach so that if Spotify's
- * session isn't active at start() time we still attach when it appears,
- * rather than silently giving up.
- *
- * Lifecycle: call start() when FidlandService starts (or when notification
- * listener permission is confirmed). Call stop() in onDestroy().
- */
 class SpotifyListener(
     private val context: Context,
     private val scope: CoroutineScope
@@ -74,6 +65,10 @@ class SpotifyListener(
                     pushUpdate(controller?.metadata, state)
                 }
 
+                override fun onQueueChanged(queue: MutableList<MediaSession.QueueItem>?) {
+                    pushQueue(queue)
+                }
+
                 override fun onSessionDestroyed() {
                     callback?.let { controller?.unregisterCallback(it) }
                     controller = null
@@ -83,9 +78,8 @@ class SpotifyListener(
             }
 
             callback?.let { controller?.registerCallback(it) }
-
-            // Push current state immediately so UI isn't blank on attach
             pushUpdate(controller?.metadata, controller?.playbackState)
+            pushQueue(controller?.queue)
             true
 
         } catch (e: SecurityException) {
@@ -109,9 +103,19 @@ class SpotifyListener(
     private fun pushUpdate(metadata: MediaMetadata?, state: PlaybackState?) {
         val isPlaying = state?.state == PlaybackState.STATE_PLAYING
 
-        // Extract album art bitmap from metadata
         val albumArt = metadata?.getBitmap(MediaMetadata.METADATA_KEY_ART)
             ?: metadata?.getBitmap(MediaMetadata.METADATA_KEY_ALBUM_ART)
+
+        val customActions = state?.customActions?.map {
+            val label = it.name?.toString() ?: ""
+            CustomActionInfo(
+                action   = it.action,
+                name     = label,
+                isActive = label.contains("remove", ignoreCase = true) ||
+                        label.contains("saved", ignoreCase = true) ||
+                        label.contains("unlike", ignoreCase = true)
+            )
+        } ?: emptyList()
 
         MusicAppsRepository.updateTrackInfo(
             packageName      = MusicApp.SPOTIFY_PACKAGE,
@@ -124,7 +128,31 @@ class SpotifyListener(
                 ?.toInt()?.coerceAtLeast(0) ?: 0,
             positionBaseMs   = state?.position ?: 0L,
             positionBaseTime = if (isPlaying) System.currentTimeMillis() else 0L,
-            albumArt         = albumArt
+            albumArt         = albumArt,
+            customActions    = customActions,
         )
+    }
+
+    private fun pushQueue(queue: MutableList<MediaSession.QueueItem>?) {
+        if (queue == null) {
+            MusicAppsRepository.updateQueue(MusicApp.SPOTIFY_PACKAGE, emptyList())
+            return
+        }
+
+        val currentTitle = controller?.metadata
+            ?.getString(MediaMetadata.METADATA_KEY_TITLE)
+
+        val upNext = queue
+            .map {
+                QueueTrackInfo(
+                    queueId  = it.queueId,
+                    title    = it.description?.title?.toString() ?: "",
+                    artist   = it.description?.subtitle?.toString() ?: "",
+                    albumArt = it.description?.iconBitmap
+                )
+            }
+            .dropWhile { it.title.isNotBlank() && it.title == currentTitle }
+
+        MusicAppsRepository.updateQueue(MusicApp.SPOTIFY_PACKAGE, upNext)
     }
 }

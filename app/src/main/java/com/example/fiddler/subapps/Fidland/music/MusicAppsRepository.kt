@@ -5,13 +5,6 @@ import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 
-/**
- * Single source of truth for all registered music apps.
- *
- * Held as a singleton so SpotifyListener, YTMusicListener,
- * and MusicTopicCompose all share the same instance without needing
- * dependency injection.
- */
 object MusicAppsRepository {
 
     private val _appsFlow = MutableStateFlow<List<MusicApp>>(emptyList())
@@ -41,13 +34,6 @@ object MusicAppsRepository {
         _appsFlow.value = apps
     }
 
-    /**
-     * Called by SpotifyListener / YTMusicListener when track metadata arrives.
-     *
-     * positionBaseMs + positionBaseTime are the raw values from
-     * PlaybackState so the UI can interpolate a live seek position
-     * without waiting for the next MediaSession callback.
-     */
     fun updateTrackInfo(
         packageName: String,
         songTitle: String,
@@ -58,21 +44,34 @@ object MusicAppsRepository {
         totalMs: Int = 0,
         positionBaseMs: Long = 0L,
         positionBaseTime: Long = 0L,
-        albumArt: Bitmap? = null
+        albumArt: Bitmap? = null,
+        customActions: List<CustomActionInfo> = emptyList(),
     ) {
         val existing = _appsFlow.value.firstOrNull { it.packageName == packageName }
         val updated = (existing ?: MusicApp(packageName = packageName, appName = packageName))
             .copy(
-                songTitle      = songTitle,
-                artistName     = artistName,
-                albumName      = albumName,
-                isPlaying      = isPlaying,
-                currentMs      = currentMs,
-                totalMs        = totalMs,
-                positionBaseMs = positionBaseMs,
+                songTitle        = songTitle,
+                artistName       = artistName,
+                albumName        = albumName,
+                isPlaying        = isPlaying,
+                currentMs        = currentMs,
+                totalMs          = totalMs,
+                positionBaseMs   = positionBaseMs,
                 positionBaseTime = positionBaseTime,
-                albumArt       = albumArt ?: existing?.albumArt
+                albumArt         = albumArt ?: existing?.albumArt,
+                customActions    = customActions,
             )
         if (existing != null) updateApp(updated) else addApp(updated)
+    }
+
+    fun updateQueue(packageName: String, queue: List<QueueTrackInfo>) {
+        val existing = _appsFlow.value.firstOrNull { it.packageName == packageName }
+            ?: MusicApp(packageName = packageName, appName = packageName)
+        val updated = existing.copy(queue = queue)
+        if (_appsFlow.value.any { it.packageName == packageName }) {
+            updateApp(updated)
+        } else {
+            addApp(updated)
+        }
     }
 }

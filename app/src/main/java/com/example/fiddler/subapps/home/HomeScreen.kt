@@ -2,10 +2,13 @@ package com.example.fiddler.subapps.home
 
 import androidx.compose.foundation.layout.*
 import androidx.compose.material3.Checkbox
+import androidx.compose.material3.CheckboxDefaults
+import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.Font
 import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.unit.dp
@@ -15,14 +18,10 @@ import com.example.fiddler.core.SubAppState
 
 @Composable
 fun HomeScreen() {
+    val context = LocalContext.current
     val fontHead = FontFamily(Font(R.font.font_head))
-    val fontBody = FontFamily(Font(R.font.font_body))
     val fontHandwriting = FontFamily(Font(R.font.font_handwriting))
-
-    var ntspdChecked by remember { mutableStateOf(true) }
-    var rngtnsChecked by remember { mutableStateOf(true) }
-    var fidlndChecked by remember { mutableStateOf(false) }
-    var secgrpChecked by remember { mutableStateOf(false) }
+    val fontBody = FontFamily(Font(R.font.font_body))
 
     Column(
         modifier = Modifier
@@ -36,13 +35,15 @@ fun HomeScreen() {
         Text(
             text = "Fiddler",
             fontFamily = fontHead,
-            fontSize = 72.sp
+            fontSize = 72.sp,
+            color = MaterialTheme.colorScheme.onSurface
         )
 
         Text(
             text = "Fiddler is a super app for customizing your phone and adding unique features.",
             fontFamily = fontHandwriting,
             fontSize = 20.sp,
+            color = MaterialTheme.colorScheme.onSurface,
             modifier = Modifier.padding(top = 8.dp)
         )
 
@@ -52,57 +53,54 @@ fun HomeScreen() {
             text = "Enabled Sub-apps:",
             fontFamily = fontBody,
             fontSize = 28.sp,
+            color = MaterialTheme.colorScheme.onSurface,
             modifier = Modifier.padding(bottom = 8.dp)
         )
 
-        Row(verticalAlignment = Alignment.CenterVertically) {
-            Checkbox(
-                checked = SubAppState.ntspdEnabled.value,
-                onCheckedChange = { SubAppState.ntspdEnabled.value = it }
-            )
-            Text(
-                text = "Net Speed Indicator",
-                fontFamily = fontHandwriting,
-                fontSize = 20.sp,
-                modifier = Modifier.padding(start = 8.dp)
-            )
+        // Simple checkboxes with no special behaviour
+        listOf(
+            "Net Speed Indicator" to SubAppState.ntspdEnabled,
+            "Ringtones"           to SubAppState.rngtnsEnabled,
+            "Secure Groups"       to SubAppState.secgrpEnabled,
+        ).forEach { (label, state) ->
+            Row(
+                verticalAlignment = Alignment.CenterVertically,
+                modifier = Modifier.padding(vertical = 2.dp)
+            ) {
+                Checkbox(
+                    checked = state.value,
+                    onCheckedChange = { state.value = it },
+                    colors = CheckboxDefaults.colors(
+                        checkedColor = MaterialTheme.colorScheme.primary
+                    )
+                )
+                Text(
+                    text = label,
+                    fontFamily = fontHandwriting,
+                    fontSize = 20.sp,
+                    color = MaterialTheme.colorScheme.onSurface,
+                    modifier = Modifier.padding(start = 8.dp)
+                )
+            }
         }
 
-        Row(verticalAlignment = Alignment.CenterVertically) {
-            Checkbox(
-                checked = SubAppState.rngtnsEnabled.value,
-                onCheckedChange = { SubAppState.rngtnsEnabled.value = it }
-            )
-            Text(
-                text = "Ringtones",
-                fontFamily = fontHandwriting,
-                fontSize = 20.sp,
-                modifier = Modifier.padding(start = 8.dp)
-            )
-        }
-
-        Row(verticalAlignment = Alignment.CenterVertically) {
+        // Fidland checkbox — runs the same full enable/disable logic as FidlandScreen
+        Row(
+            verticalAlignment = Alignment.CenterVertically,
+            modifier = Modifier.padding(vertical = 2.dp)
+        ) {
             Checkbox(
                 checked = SubAppState.fidlandEnabled.value,
-                onCheckedChange = { SubAppState.fidlandEnabled.value = it }
+                onCheckedChange = { SubAppState.setFidlandEnabled(context, it) },
+                colors = CheckboxDefaults.colors(
+                    checkedColor = MaterialTheme.colorScheme.primary
+                )
             )
             Text(
                 text = "Fidland",
                 fontFamily = fontHandwriting,
                 fontSize = 20.sp,
-                modifier = Modifier.padding(start = 8.dp)
-            )
-        }
-
-        Row(verticalAlignment = Alignment.CenterVertically) {
-            Checkbox(
-                checked = SubAppState.secgrpEnabled.value,
-                onCheckedChange = { SubAppState.secgrpEnabled.value = it }
-            )
-            Text(
-                text = "Secure Groups",
-                fontFamily = fontHandwriting,
-                fontSize = 20.sp,
+                color = MaterialTheme.colorScheme.onSurface,
                 modifier = Modifier.padding(start = 8.dp)
             )
         }
