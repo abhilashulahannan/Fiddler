@@ -23,7 +23,6 @@ import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
-import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
@@ -48,11 +47,13 @@ import com.example.fiddler.subapps.Fidland.phs3.Phs3Handler
  * Phs3 module — Ride hailing (Uber, Ola, Rapido).
  *
  * ── State 3 indicator layout ─────────────────────────────────────────────────
- * PRE_RIDE:  [app icon]  ·  OTP 4821  ·  3 min
- * IN_RIDE:   [app icon]  ·  12 min  ·  [progress arc — only if dest known]
+ * PRE_RIDE:  [app name]  ·  OTP 4821  ·  3 min
+ * IN_RIDE:   [app name]  ·  12 min  ·  [progress arc — only if dest known]
  *
- * The app icon sits in location a (left of hole-punch, same slot as AlbumArtSpinner).
- * The rest of the content goes in the right zone via [Indicator].
+ * The app name (RideApp.displayName) sits in location a (left of hole-punch,
+ * same slot as AlbumArtSpinner) as plain text — the old branded colored-dot
+ * fallback icon was dropped in favour of just showing the name. The rest of
+ * the content goes in the right zone via [Indicator].
  *
  * ── State 5 panel ────────────────────────────────────────────────────────────
  * PRE_RIDE: driver name, vehicle, rating, large OTP, driver ETA
@@ -77,7 +78,13 @@ class RidePhs3Handler : Phs3Handler {
         val snap by RideRepository.flow.collectAsState()
         if (!snap.isActive || snap.app == null) return
 
-        RideAppIcon(app = snap.app!!, size = 18.dp)
+        Text(
+            text       = snap.app!!.displayName,
+            color      = Color.White,
+            fontSize   = 11.sp,
+            fontWeight = FontWeight.SemiBold,
+            maxLines   = 1,
+        )
     }
 
     // ── State 3 indicator — right zone content ────────────────────────────────
@@ -432,32 +439,6 @@ fun RideProgressArc(
                 fontSize = (size.value * 0.22f).sp,
             )
         }
-    }
-}
-
-/** Ride app coloured dot or letter badge in location a. */
-@Composable
-fun RideAppIcon(app: RideApp, size: Dp) {
-    val bgColor = when (app) {
-        RideApp.UBER   -> Color.Black
-        RideApp.OLA    -> Color(0xFF1DB954)
-        RideApp.RAPIDO -> Color(0xFFFDD835)
-    }
-    val letter = app.displayName.first().toString()
-
-    Box(
-        modifier         = Modifier
-            .size(size)
-            .clip(CircleShape)
-            .background(bgColor),
-        contentAlignment = Alignment.Center,
-    ) {
-        Text(
-            text       = letter,
-            color      = if (app == RideApp.RAPIDO) Color.Black else Color.White,
-            fontSize   = (size.value * 0.55f).sp,
-            fontWeight = FontWeight.Bold,
-        )
     }
 }
 

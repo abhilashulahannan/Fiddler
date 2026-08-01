@@ -46,6 +46,12 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import coil.compose.AsyncImage
 import coil.request.ImageRequest
+import com.airbnb.lottie.compose.LottieAnimation
+import com.airbnb.lottie.compose.LottieCompositionSpec
+import com.airbnb.lottie.compose.LottieConstants
+import com.airbnb.lottie.compose.animateLottieCompositionAsState
+import com.airbnb.lottie.compose.rememberLottieComposition
+import com.example.fiddler.R
 
 // ─────────────────────────────────────────────────────────────────────────────
 //  Supplemental data models
@@ -392,14 +398,20 @@ private fun CollapsedBody(
         ) {
             val venueText = match.venue ?: ""
             if (venueText.isNotBlank()) {
-                Text(
-                    text = "📍 $venueText",
-                    color = CardColors.textDim,
-                    fontSize = 9.sp,
-                    maxLines = 1,
-                    overflow = TextOverflow.Ellipsis,
+                Row(
                     modifier = Modifier.weight(1f),
-                )
+                    verticalAlignment = Alignment.CenterVertically,
+                ) {
+                    FootballStadiumIcon(sizeDp = 10.dp)
+                    Spacer(Modifier.width(3.dp))
+                    Text(
+                        text = venueText,
+                        color = CardColors.textDim,
+                        fontSize = 9.sp,
+                        maxLines = 1,
+                        overflow = TextOverflow.Ellipsis,
+                    )
+                }
             } else {
                 Spacer(Modifier.weight(1f))
             }
@@ -1096,9 +1108,31 @@ private fun StadiumImage(
                 .background(Color(0xFF1E1E1E)),
             contentAlignment = Alignment.Center,
         ) {
-            Text(text = "🏟", fontSize = (height / 3).sp, color = CardColors.textDim)
+            FootballStadiumIcon(sizeDp = (height / 2).dp)
         }
     }
+}
+
+/**
+ * Looping `res/raw/football_stadium.json`. Used two places:
+ *   • [StadiumImage]'s no-photo fallback (in place of the old 🏟 text glyph)
+ *   • the venue-pin icon in [CollapsedBody]'s footer — reused directly here
+ *     rather than shipping a dedicated pin asset (resolved as "no lottie
+ *     needed" in the handoff tracker).
+ */
+@Composable
+private fun FootballStadiumIcon(sizeDp: androidx.compose.ui.unit.Dp) {
+    val composition by rememberLottieComposition(LottieCompositionSpec.RawRes(R.raw.football_stadium))
+    val progress by animateLottieCompositionAsState(
+        composition = composition,
+        iterations  = LottieConstants.IterateForever,
+        isPlaying   = true,
+    )
+    LottieAnimation(
+        composition = composition,
+        progress    = { progress },
+        modifier    = Modifier.size(sizeDp),
+    )
 }
 
 // ─────────────────────────────────────────────────────────────────────────────

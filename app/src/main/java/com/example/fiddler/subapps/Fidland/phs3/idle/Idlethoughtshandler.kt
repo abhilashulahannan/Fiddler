@@ -6,16 +6,26 @@ import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
 import androidx.compose.animation.togetherWith
 import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.layout.wrapContentWidth
 import androidx.compose.material3.Text
 import androidx.compose.runtime.*
+import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import com.airbnb.lottie.compose.LottieAnimation
+import com.airbnb.lottie.compose.LottieCompositionSpec
+import com.airbnb.lottie.compose.LottieConstants
+import com.airbnb.lottie.compose.animateLottieCompositionAsState
+import com.airbnb.lottie.compose.rememberLottieComposition
+import com.example.fiddler.R
 import com.example.fiddler.subapps.Fidland.phs3.Phs3Handler
 import kotlinx.coroutines.delay
 
@@ -59,6 +69,12 @@ import kotlinx.coroutines.delay
  * give the Text its own fixed width, sized from
  * IslandConfig.STATE3_MAX_WIDTH minus the pill's own chrome (hole spacer +
  * horizontal content padding), rather than relying on RightZone's box.
+ *
+ * ── Icon slot ────────────────────────────────────────────────────────────────
+ * A small looping `nhi_lama.json` glyph sits to the left of the streaming
+ * text, in a fixed-width slot — same Row idiom as CalendarPhs3Handler's icon
+ * + text-column layout. It plays continuously for as long as Idle is the
+ * active handler, independent of the typewriter cycle.
  *
  * ── State 5 ──────────────────────────────────────────────────────────────────
  * hasState5Content() returns false — swiping down goes straight to the
@@ -104,22 +120,34 @@ class IdleThoughtsHandler : Phs3Handler {
             }
         }
 
-        AnimatedContent(
-            targetState = displayedText,
-            transitionSpec = {
-                fadeIn(tween(80)) togetherWith fadeOut(tween(60))
-            },
-            label = "idle_thought_stream"
-        ) { text ->
-            Box(modifier = Modifier.wrapContentWidth().widthIn(max = INDICATOR_MAX_WIDTH).padding(horizontal = 8.dp)) {
-                Text(
-                    text = text,
-                    color = Color.White,
-                    fontSize = fontSize,
-                    maxLines = MAX_LINES,
-                    overflow = TextOverflow.Ellipsis,
-                    letterSpacing = 0.sp,
-                )
+        Row(
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.spacedBy(IDLE_ICON_TEXT_GAP),
+        ) {
+            Box(
+                modifier = Modifier.wrapContentWidth(),
+                contentAlignment = Alignment.Center,
+            ) {
+                NhiLamaIcon(size = IDLE_ICON_SIZE)
+            }
+
+            AnimatedContent(
+                targetState = displayedText,
+                transitionSpec = {
+                    fadeIn(tween(80)) togetherWith fadeOut(tween(60))
+                },
+                label = "idle_thought_stream"
+            ) { text ->
+                Box(modifier = Modifier.wrapContentWidth().widthIn(max = INDICATOR_MAX_WIDTH).padding(horizontal = 8.dp)) {
+                    Text(
+                        text = text,
+                        color = Color.White,
+                        fontSize = fontSize,
+                        maxLines = MAX_LINES,
+                        overflow = TextOverflow.Ellipsis,
+                        letterSpacing = 0.sp,
+                    )
+                }
             }
         }
     }
@@ -204,6 +232,12 @@ class IdleThoughtsHandler : Phs3Handler {
          */
         private val INDICATOR_MAX_WIDTH = 120.dp
 
+        /** Size of the nhi_lama icon slot next to the streaming text. */
+        private val IDLE_ICON_SIZE = 14.dp
+
+        /** Gap between the icon slot and the streaming text. */
+        private val IDLE_ICON_TEXT_GAP = 4.dp
+
         /**
          * How long a thought stays current before the next one is picked,
          * measured from when it first starts streaming in. The typewriter
@@ -212,4 +246,22 @@ class IdleThoughtsHandler : Phs3Handler {
          */
         private const val THOUGHT_INTERVAL_MS = 5 * 60 * 1_000L
     }
+}
+
+/** Looping `nhi_lama.json` glyph shown beside the idle-thoughts stream. */
+@Composable
+private fun NhiLamaIcon(size: androidx.compose.ui.unit.Dp) {
+    val composition by rememberLottieComposition(
+        LottieCompositionSpec.RawRes(R.raw.nhi_lama)
+    )
+    val progress by animateLottieCompositionAsState(
+        composition = composition,
+        iterations  = LottieConstants.IterateForever,
+        isPlaying   = true,
+    )
+    LottieAnimation(
+        composition = composition,
+        progress    = { progress },
+        modifier    = Modifier.size(size),
+    )
 }

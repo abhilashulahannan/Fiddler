@@ -33,13 +33,20 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import com.airbnb.lottie.compose.LottieAnimation
+import com.airbnb.lottie.compose.LottieCompositionSpec
+import com.airbnb.lottie.compose.LottieConstants
+import com.airbnb.lottie.compose.animateLottieCompositionAsState
+import com.airbnb.lottie.compose.rememberLottieComposition
+import com.example.fiddler.R
 import com.example.fiddler.subapps.Fidland.phs3.Phs3Handler
 
 /**
  * Phs3 module — Timer / Stopwatch (Clock app).
  *
  * ── Location a (left of hole-punch) ──────────────────────────────────────────
- *   Mode glyph — ⏱ for a countdown timer, ⏲ for a stopwatch. Call
+ *   Mode icon — looping Lottie asset (res/raw/timer_countdown_stopwatch.json),
+ *   shared by both TIMER and STOPWATCH since there's one combined asset. Call
  *   [LocationAIndicator] from the pill's left-zone composable (same pattern
  *   as AlbumArtSpinner for music / NavigationPhs3Handler.LocationAIndicator).
  *   Shifts to sit left of NetSpeedDisplay automatically when netspeed is on,
@@ -84,11 +91,7 @@ class TimerPhs3Handler(
         val snapshot by TimerRepository.flow.collectAsState()
         if (!snapshot.isActive) return
 
-        Text(
-            text     = if (snapshot.mode == TimerMode.TIMER) "⏱" else "⏲",
-            fontSize = 14.sp,
-            color    = Color.White,
-        )
+        TimerModeIcon(sizeDp = 14.dp)
     }
 
     // ── Indicator — location b (time) + location c (ring / last lap) ─────────
@@ -160,10 +163,7 @@ class TimerPhs3Handler(
                     color    = Color(0xFF888888),
                     fontSize = 10.sp,
                 )
-                Text(
-                    text     = if (snapshot.mode == TimerMode.TIMER) "⏱" else "⏲",
-                    fontSize = 12.sp,
-                )
+                TimerModeIcon(sizeDp = 12.dp)
             }
 
             Spacer(modifier = Modifier.height(10.dp))
@@ -295,6 +295,31 @@ private fun PanelButton(text: String, modifier: Modifier = Modifier, onClick: ()
     ) {
         Text(text = text, color = Color.White, fontSize = 11.sp, fontWeight = FontWeight.Medium)
     }
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+//  Mode icon — shared between LocationAIndicator and the State5 header
+// ─────────────────────────────────────────────────────────────────────────────
+
+/**
+ * Timer/stopwatch mode icon — loops `res/raw/timer_countdown_stopwatch.json`.
+ * A single combined asset covers both [TimerMode.TIMER] and
+ * [TimerMode.STOPWATCH] (replacing the old ⏱ / ⏲ glyph switch), so this
+ * composable doesn't branch on mode at all.
+ */
+@Composable
+private fun TimerModeIcon(sizeDp: Dp) {
+    val composition by rememberLottieComposition(LottieCompositionSpec.RawRes(R.raw.timer_countdown_stopwatch))
+    val progress by animateLottieCompositionAsState(
+        composition = composition,
+        iterations  = LottieConstants.IterateForever,
+        isPlaying   = true,
+    )
+    LottieAnimation(
+        composition = composition,
+        progress    = { progress },
+        modifier    = Modifier.size(sizeDp),
+    )
 }
 
 // ─────────────────────────────────────────────────────────────────────────────

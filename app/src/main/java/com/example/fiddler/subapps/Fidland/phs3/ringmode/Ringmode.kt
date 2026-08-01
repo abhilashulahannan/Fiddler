@@ -17,13 +17,20 @@ import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.getValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import com.airbnb.lottie.compose.LottieAnimation
+import com.airbnb.lottie.compose.LottieCompositionSpec
+import com.airbnb.lottie.compose.LottieConstants
+import com.airbnb.lottie.compose.animateLottieCompositionAsState
+import com.airbnb.lottie.compose.rememberLottieComposition
 import com.example.fiddler.subapps.Fidland.phs3.Phs3Handler
 
 /**
@@ -72,11 +79,8 @@ class VolumePhs3Handler(
                 onModeSelected(RING_TAP_CYCLE[nextIndex])
             }
         ) {
-            // Mode emoji
-            Text(
-                text = snapshot.mode.icon,
-                fontSize = 13.sp,
-            )
+            // Mode icon
+            RingModeIcon(mode = snapshot.mode, size = 13.dp)
 
             // Label — for DND show the policy sub-type
             val label = if (snapshot.mode == RingMode.DND) {
@@ -119,7 +123,7 @@ class VolumePhs3Handler(
                         .background(modeCircleColor(snapshot.mode)),
                     contentAlignment = Alignment.Center,
                 ) {
-                    Text(text = snapshot.mode.icon, fontSize = 16.sp)
+                    RingModeIcon(mode = snapshot.mode, size = 18.dp)
                 }
 
                 Column(modifier = Modifier.weight(1f)) {
@@ -172,6 +176,26 @@ class VolumePhs3Handler(
     }
 }
 
+// ── Mode icon ──────────────────────────────────────────────────────────────────
+
+/** Shared mode icon — plays the matching ring_*.json Lottie asset on loop. */
+@Composable
+private fun RingModeIcon(mode: RingMode, size: Dp) {
+    val composition by rememberLottieComposition(
+        LottieCompositionSpec.RawRes(mode.rawRes)
+    )
+    val progress by animateLottieCompositionAsState(
+        composition = composition,
+        iterations  = LottieConstants.IterateForever,
+        isPlaying   = true,
+    )
+    LottieAnimation(
+        composition = composition,
+        progress    = { progress },
+        modifier    = Modifier.size(size),
+    )
+}
+
 // ── Mode switcher button ──────────────────────────────────────────────────────
 
 @Composable
@@ -193,7 +217,7 @@ private fun ModeSwitchButton(
             .clickable(onClick = onClick)
             .padding(vertical = 10.dp),
     ) {
-        Text(text = mode.icon, fontSize = 18.sp)
+        RingModeIcon(mode = mode, size = 20.dp)
         Text(
             text = mode.displayName,
             color = labelColor,
@@ -216,7 +240,7 @@ private fun DndPolicyRow(policy: DndPolicy) {
             .background(Color(0xFF1A1A2A))
             .padding(horizontal = 12.dp, vertical = 8.dp),
     ) {
-        Text(text = "🌙", fontSize = 13.sp)
+        RingModeIcon(mode = RingMode.DND, size = 15.dp)
         Column {
             Text(
                 text = policy.displayName,

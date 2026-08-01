@@ -60,7 +60,7 @@ private const val CALL_TIMER_TICK_MS = 1_000L
  * (via TelecomManager / InCallService). Deactivates once the call ends.
  *
  * Layout (State 3 indicator):
- *   a  — [CallPhoneIcon] in green.  TODO: replace icon with Lottie animation.
+ *   a  — [CallPhoneIcon] in green (Lottie, res/raw/call_call.json).
  *   b  — Live call-duration timer (MM:SS / H:MM:SS). Shown only once
  *          [ActiveCallInfo.connectionState] transitions to ACTIVE; blank while
  *          RINGING or CONNECTING.
@@ -124,7 +124,6 @@ class ActiveCallPhs3Handler(
             horizontalArrangement = Arrangement.spacedBy(4.dp),
         ) {
             // ── Location A: green phone icon ──────────────────────────────
-            // TODO: replace with Lottie animation when assets are ready.
             CallPhoneIcon(missed = false, size = 16.dp)
 
             // ── Location B: call duration timer ──────────────────────────
@@ -291,7 +290,7 @@ class ActiveCallPhs3Handler(
  * Deactivates once all missed calls are acknowledged / cleared.
  *
  * Layout (State 3 indicator):
- *   a  — [CallPhoneIcon] in red.  TODO: replace with Lottie animation.
+ *   a  — [CallPhoneIcon] in red (Lottie, res/raw/call_missed.json).
  *   b  — Missed-call count from the caller currently shown in Location C
  *          (e.g. "x3"). Hidden if count == 1.
  *   c  — Two-line text: caller name (top) / phone number (bottom).
@@ -336,7 +335,6 @@ class MissedCallPhs3Handler(
             horizontalArrangement = Arrangement.spacedBy(4.dp),
         ) {
             // ── Location A: red phone icon ────────────────────────────────
-            // TODO: replace with Lottie animation when assets are ready.
             CallPhoneIcon(missed = true, size = 16.dp)
 
             // ── Location B: missed-call count badge for the current caller ─

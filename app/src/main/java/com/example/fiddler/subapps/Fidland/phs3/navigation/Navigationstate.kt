@@ -1,5 +1,7 @@
 package com.example.fiddler.subapps.Fidland.phs3.navigation
 
+import com.example.fiddler.R
+
 // ─────────────────────────────────────────────────────────────────────────────
 //  Turn direction
 // ─────────────────────────────────────────────────────────────────────────────
@@ -16,6 +18,30 @@ enum class TurnDirection {
     U_TURN_RIGHT,
     UNKNOWN,
 }
+
+/**
+ * Lottie asset (res/raw) matching each direction. There's one U-turn asset
+ * (`nav_uturn.json`, drawn for U_TURN_LEFT) — U_TURN_RIGHT reuses it and is
+ * flipped horizontally at render time (see [isMirrored] / NavDirectionIcon
+ * in navigation.kt) rather than shipping a second, mirrored asset.
+ * UNKNOWN has no asset — the handler falls back to [toArrow]'s "•" glyph.
+ */
+fun TurnDirection.toRawRes(): Int? = when (this) {
+    TurnDirection.STRAIGHT      -> R.raw.nav_straight
+    TurnDirection.MILD_LEFT     -> R.raw.nav_mildleft
+    TurnDirection.LEFT          -> R.raw.nav_left
+    TurnDirection.SHARP_LEFT    -> R.raw.nav_sharpleft
+    TurnDirection.U_TURN_LEFT   -> R.raw.nav_uturn
+    TurnDirection.MILD_RIGHT    -> R.raw.nav_mildright
+    TurnDirection.RIGHT         -> R.raw.nav_right
+    TurnDirection.SHARP_RIGHT   -> R.raw.nav_sharpright
+    TurnDirection.U_TURN_RIGHT  -> R.raw.nav_uturn
+    TurnDirection.UNKNOWN       -> null
+}
+
+/** Whether [toRawRes]'s asset needs a horizontal flip for this direction —
+ *  true only for U_TURN_RIGHT, which mirrors the U_TURN_LEFT asset. */
+fun TurnDirection.isMirrored(): Boolean = this == TurnDirection.U_TURN_RIGHT
 
 // ─────────────────────────────────────────────────────────────────────────────
 //  Traffic severity (matches Google Maps colouring)

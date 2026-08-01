@@ -42,6 +42,13 @@ import kotlinx.coroutines.flow.asStateFlow
  * removed from the public API in API 30 — the framework now always buckets
  * into a fixed 5-level (0..4) scale internally, so only the one-arg form
  * compiles against modern compileSdk versions.
+ *
+ * ── Frequency band ────────────────────────────────────────────────────────────
+ * WifiInfo.getFrequency() (MHz, available since API 21) reports the actual
+ * channel frequency of the current connection. [frequencyToWifiBand] buckets
+ * this into 2.4 GHz / 5 GHz for [WifiCommsInfo.band]. Same availability
+ * caveats as SSID above — meaningless (and here, simply absent) when not
+ * connected.
  */
 class WifiCommsSource(
     private val context: Context,
@@ -92,7 +99,7 @@ class WifiCommsSource(
             }
 
             override fun onLost(network: Network) {
-                publish(wifiManager.isWifiEnabled, ssid = null, bars = null, dbm = null)
+                publish(wifiManager.isWifiEnabled, ssid = null, bars = null, dbm = null, band = null)
             }
         }
         connectivityManager.registerNetworkCallback(request, networkCallback!!)
@@ -132,7 +139,7 @@ class WifiCommsSource(
         }
 
         if (wifiInfo == null || wifiInfo.networkId == -1) {
-            publish(wifiManager.isWifiEnabled, ssid = null, bars = null, dbm = null)
+            publish(wifiManager.isWifiEnabled, ssid = null, bars = null, dbm = null, band = null)
             return
         }
 
@@ -148,15 +155,22 @@ class WifiCommsSource(
             null
         }
 
-        publish(wifiManager.isWifiEnabled, ssid = ssid, bars = bars, dbm = rssi)
+        val band = try {
+            frequencyToWifiBand(wifiInfo.frequency)
+        } catch (_: Exception) {
+            null
+        }
+
+        publish(wifiManager.isWifiEnabled, ssid = ssid, bars = bars, dbm = rssi, band = band)
     }
 
-    private fun publish(enabled: Boolean, ssid: String?, bars: Int?, dbm: Int?) {
+    private fun publish(enabled: Boolean, ssid: String?, bars: Int?, dbm: Int?, band: WifiBand?) {
         _info.value = WifiCommsInfo(
             isEnabled = enabled,
             ssid = ssid,
             signalBars = bars,
             rssiDbm = dbm,
+            band = band,
         )
     }
 }

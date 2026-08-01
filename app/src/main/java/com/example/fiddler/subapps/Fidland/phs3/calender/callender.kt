@@ -30,14 +30,22 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import com.airbnb.lottie.compose.LottieAnimation
+import com.airbnb.lottie.compose.LottieCompositionSpec
+import com.airbnb.lottie.compose.LottieConstants
+import com.airbnb.lottie.compose.animateLottieCompositionAsState
+import com.airbnb.lottie.compose.rememberLottieComposition
+import com.example.fiddler.R
 import com.example.fiddler.subapps.Fidland.phs3.Phs3Handler
 import kotlinx.coroutines.delay
 
 /**
  * Phs3 module — Calendar / upcoming event.
  *
- * Indicator (State 3, location "b" — single text-column slot, no icon zone):
- *   Two-line layout matching MusicPhs3Handler's text column:
+ * Indicator (State 3, location "b" — icon slot + text-column, matching
+ *   MusicPhs3Handler's icon + text-column layout):
+ *   Looping `callender.json` glyph (see [CalendarIcon]) in a fixed-width
+ *   slot, followed by the same two-line text column as before:
  *     line 1 (bold)  — event title
  *     line 2 (dim)   — time until start, "Now", "All day", or clock time
  *                       once more than an hour out (see [indicatorSubtitle]).
@@ -74,30 +82,43 @@ class CalendarPhs3Handler(
 
         val event = nextIndicatorEvent(events, nowMs)
 
-        Column(
-            horizontalAlignment = Alignment.Start,
-            verticalArrangement = Arrangement.Center,
-            modifier = Modifier.width(CALENDAR_TEXT_COLUMN_WIDTH),
+        Row(
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.spacedBy(CALENDAR_ICON_TEXT_GAP),
+            modifier = Modifier.width(CALENDAR_ICON_WIDTH + CALENDAR_ICON_TEXT_GAP + CALENDAR_TEXT_COLUMN_WIDTH),
         ) {
-            Text(
-                text = event?.title?.ifBlank { "Untitled event" } ?: "No events today",
-                color = Color.White,
-                fontSize = 9.sp,
-                lineHeight = 10.sp,
-                fontWeight = FontWeight.Bold,
-                maxLines = 1,
-                overflow = TextOverflow.Ellipsis,
-                modifier = Modifier.fillMaxWidth(),
-            )
-            Text(
-                text = event?.indicatorSubtitle(nowMs) ?: "",
-                color = Color(0xFFAAAAAA),
-                fontSize = 7.sp,
-                lineHeight = 8.sp,
-                maxLines = 1,
-                overflow = TextOverflow.Ellipsis,
-                modifier = Modifier.fillMaxWidth(),
-            )
+            Box(
+                modifier = Modifier.width(CALENDAR_ICON_WIDTH),
+                contentAlignment = Alignment.Center,
+            ) {
+                CalendarIcon(size = CALENDAR_ICON_SIZE)
+            }
+
+            Column(
+                horizontalAlignment = Alignment.Start,
+                verticalArrangement = Arrangement.Center,
+                modifier = Modifier.width(CALENDAR_TEXT_COLUMN_WIDTH),
+            ) {
+                Text(
+                    text = event?.title?.ifBlank { "Untitled event" } ?: "No events today",
+                    color = Color.White,
+                    fontSize = 9.sp,
+                    lineHeight = 10.sp,
+                    fontWeight = FontWeight.Bold,
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis,
+                    modifier = Modifier.fillMaxWidth(),
+                )
+                Text(
+                    text = event?.indicatorSubtitle(nowMs) ?: "",
+                    color = Color(0xFFAAAAAA),
+                    fontSize = 7.sp,
+                    lineHeight = 8.sp,
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis,
+                    modifier = Modifier.fillMaxWidth(),
+                )
+            }
         }
     }
 
@@ -148,6 +169,31 @@ class CalendarPhs3Handler(
 // Calendar titles tend to run longer, so this is a bit wider — adjust to
 // taste or move into IslandConfig if you want it centrally tunable.
 private val CALENDAR_TEXT_COLUMN_WIDTH: Dp = 70.dp
+
+// Icon slot — same idiom as MUSIC_EQ_WIDTH/MUSIC_EQ_TEXT_GAP in IslandConfig,
+// kept local here since Calendar's icon (unlike the equalizer) is a fixed
+// static glyph with no per-frame layout dependencies elsewhere.
+private val CALENDAR_ICON_SIZE: Dp = 16.dp
+private val CALENDAR_ICON_WIDTH: Dp = 18.dp
+private val CALENDAR_ICON_TEXT_GAP: Dp = 6.dp
+
+/** Looping `callender.json` glyph shown in the Indicator's new icon slot. */
+@Composable
+private fun CalendarIcon(size: Dp) {
+    val composition by rememberLottieComposition(
+        LottieCompositionSpec.RawRes(R.raw.callender)
+    )
+    val progress by animateLottieCompositionAsState(
+        composition = composition,
+        iterations  = LottieConstants.IterateForever,
+        isPlaying   = true,
+    )
+    LottieAnimation(
+        composition = composition,
+        progress    = { progress },
+        modifier    = Modifier.size(size),
+    )
+}
 
 /** A single State 5 event row: colour dot, title, time range, location. */
 @Composable

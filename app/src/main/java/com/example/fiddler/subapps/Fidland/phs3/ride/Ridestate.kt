@@ -7,27 +7,22 @@ package com.example.fiddler.subapps.Fidland.phs3.ride
 enum class RideApp(
     val packageName: String,
     val displayName: String,
-    /** Unicode emoji used as a fallback icon — branded icon preferred in Indicator. */
-    val icon: String,
     /** Deep-link to open the app directly. */
     val launchAction: String,
 ) {
     UBER(
         packageName  = "com.ubercab",
         displayName  = "Uber",
-        icon         = "🖤",
         launchAction = "uber://",
     ),
     OLA(
         packageName  = "com.olacabs.customer",
         displayName  = "Ola",
-        icon         = "🟢",
         launchAction = "ola://",
     ),
     RAPIDO(
         packageName  = "com.rapido.passenger",
         displayName  = "Rapido",
-        icon         = "🟡",
         launchAction = "rapido://",
     );
 
