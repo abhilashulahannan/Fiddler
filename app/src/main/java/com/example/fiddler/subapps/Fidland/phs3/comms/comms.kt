@@ -10,6 +10,7 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.getValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.geometry.Offset
@@ -17,10 +18,16 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.Path
 import androidx.compose.ui.graphics.StrokeCap
 import androidx.compose.ui.graphics.drawscope.Stroke
-import androidx.compose.ui.graphics.nativeCanvas
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import com.airbnb.lottie.compose.LottieAnimation
+import com.airbnb.lottie.compose.LottieCompositionSpec
+import com.airbnb.lottie.compose.LottieConstants
+import com.airbnb.lottie.compose.animateLottieCompositionAsState
+import com.airbnb.lottie.compose.rememberLottieComposition
+import com.example.fiddler.R
 import com.example.fiddler.subapps.Fidland.phs3.Phs3Handler
 
 /**
@@ -66,7 +73,7 @@ class CommsPhs3Handler(
                 BluetoothIcon(connected = snapshot.bluetooth.connectedDevice != null)
             }
             if (snapshot.wifi.isEnabled) {
-                WifiSignalIcon(bars = snapshot.wifi.signalBars)
+                WifiIcon(wifi = snapshot.wifi)
             }
             if (snapshot.nfc.isEnabled) {
                 NfcIcon()
@@ -110,6 +117,11 @@ class CommsPhs3Handler(
                     !snapshot.wifi.isEnabled -> "Off"
                     snapshot.wifi.ssid != null -> buildString {
                         append(snapshot.wifi.ssid)
+                        when (snapshot.wifi.band) {
+                            WifiBand.GHZ_2_4 -> append(" · 2.4 GHz")
+                            WifiBand.GHZ_5    -> append(" · 5 GHz")
+                            null              -> {}
+                        }
                         if (snapshot.wifi.rssiDbm != null) append(" · ${snapshot.wifi.rssiDbm} dBm")
                     }
                     else -> "On — not connected"
@@ -149,41 +161,75 @@ private fun CommsDetailRow(title: String, detail: String) {
 // ── Indicator icons ──────────────────────────────────────────────────────────
 
 /**
- * Simple BT glyph (the classic angular "bowtie" rune). [connected] swaps the
- * dot below it from dim to bright white — a quick visual for "paired vs idle."
+ * Bluetooth radio icon — loops `res/raw/comms_bt.json`. [connected] adds a
+ * small bright dot in the corner when a device is actively paired, dim/absent
+ * otherwise — the old canvas version had a `connected` branch that was a
+ * no-op stub; this is the first real implementation of that indicator.
  */
 @Composable
-private fun BluetoothIcon(connected: Boolean, sizeDp: androidx.compose.ui.unit.Dp = 14.dp) {
-    val color = Color.White
+private fun BluetoothIcon(connected: Boolean, sizeDp: Dp = 14.dp) {
     Box(modifier = Modifier.size(sizeDp)) {
-        Canvas(modifier = Modifier.size(sizeDp)) {
-            val scale = size.width / 14f
-            val sw = 1.4f * scale
-            val path = Path().apply {
-                // Vertical stem
-                moveTo(7f * scale, 1f * scale)
-                lineTo(7f * scale, 13f * scale)
-                // Upper triangle
-                moveTo(7f * scale, 1f * scale)
-                lineTo(11f * scale, 4.5f * scale)
-                lineTo(3f * scale, 9.5f * scale)
-                // Lower triangle
-                moveTo(7f * scale, 13f * scale)
-                lineTo(11f * scale, 9.5f * scale)
-                lineTo(3f * scale, 4.5f * scale)
+        val composition by rememberLottieComposition(LottieCompositionSpec.RawRes(R.raw.comms_bt))
+        val progress by animateLottieCompositionAsState(
+            composition = composition,
+            iterations  = LottieConstants.IterateForever,
+            isPlaying   = true,
+        )
+        LottieAnimation(
+            composition = composition,
+            progress    = { progress },
+            modifier    = Modifier.size(sizeDp),
+        )
+        if (connected) {
+            Canvas(modifier = Modifier.size(sizeDp)) {
+                val scale = size.width / 14f
+                drawCircle(
+                    color = Color.White,
+                    radius = 1.4f * scale,
+                    center = Offset(12f * scale, 12f * scale),
+                )
             }
-            drawPath(path, color, style = Stroke(width = sw, cap = StrokeCap.Round))
         }
     }
-    if (connected) {
-        // Small bright dot rendered just under the glyph by the caller's Row spacing.
+}
+
+/**
+ * WiFi radio icon. Plays the matching band Lottie asset
+ * (`comms_wifi24g.json` / `comms_wifi5g.json` — see [WifiBand.toRawRes])
+ * when [WifiCommsInfo.band] is known. Falls back to the old hand-drawn
+ * fan-arc + bar-count icon ([WifiSignalBarsIcon]) when band detection
+ * comes back null — not connected yet, or (rarely) a 6 GHz network outside
+ * both known ranges — so the indicator never goes fully blank while WiFi
+ * is enabled.
+ *
+ * Replaces the previous bar-count-only WifiSignalIcon as the primary WiFi
+ * glyph, per the handoff doc's band-detection task.
+ */
+@Composable
+private fun WifiIcon(wifi: WifiCommsInfo, sizeDp: Dp = 14.dp) {
+    val band = wifi.band
+    if (band != null) {
+        val composition by rememberLottieComposition(LottieCompositionSpec.RawRes(band.toRawRes()))
+        val progress by animateLottieCompositionAsState(
+            composition = composition,
+            iterations  = LottieConstants.IterateForever,
+            isPlaying   = true,
+        )
+        LottieAnimation(
+            composition = composition,
+            progress    = { progress },
+            modifier    = Modifier.size(sizeDp),
+        )
+    } else {
+        WifiSignalBarsIcon(bars = wifi.signalBars, sizeDp = sizeDp)
     }
 }
 
 /** WiFi fan-arc icon, reusing the same visual language as DownloadNetworkIcon's
- *  WIFI case, with bar count optionally dimming the outer arcs to show signal. */
+ *  WIFI case, with bar count optionally dimming the outer arcs to show signal.
+ *  Kept as the fallback for [WifiIcon] when frequency band isn't known yet. */
 @Composable
-private fun WifiSignalIcon(bars: Int?, sizeDp: androidx.compose.ui.unit.Dp = 14.dp) {
+private fun WifiSignalBarsIcon(bars: Int?, sizeDp: Dp = 14.dp) {
     val activeArcs = bars?.let { ((it / 4f) * 3).toInt().coerceIn(1, 3) } ?: 3
     Box(modifier = Modifier.size(sizeDp)) {
         Canvas(modifier = Modifier.size(sizeDp)) {
@@ -215,38 +261,65 @@ private fun WifiSignalIcon(bars: Int?, sizeDp: androidx.compose.ui.unit.Dp = 14.
     }
 }
 
-/** Small "N" badge — NFC has no standard universal glyph, so a bold letter
- *  badge is the clearest compact representation at icon-row size. */
+/** NFC radio icon — loops `res/raw/comms_nfc.json`, replacing the old bold
+ *  "N" text badge (NFC has no standard universal glyph, so the badge was a
+ *  stand-in until this asset existed). */
 @Composable
-private fun NfcIcon(sizeDp: androidx.compose.ui.unit.Dp = 14.dp) {
-    Box(modifier = Modifier.size(sizeDp)) {
-        Canvas(modifier = Modifier.size(sizeDp)) {
-            drawContext.canvas.nativeCanvas.apply {
-                val paint = android.graphics.Paint().apply {
-                    color = android.graphics.Color.WHITE
-                    textSize = this@Canvas.size.width * 0.62f
-                    typeface = android.graphics.Typeface.create(
-                        android.graphics.Typeface.DEFAULT_BOLD,
-                        android.graphics.Typeface.BOLD
-                    )
-                    textAlign = android.graphics.Paint.Align.CENTER
-                    isAntiAlias = true
-                }
-                drawText(
-                    "N",
-                    this@Canvas.size.width / 2f,
-                    this@Canvas.size.height / 2f + paint.textSize / 3f,
-                    paint
-                )
-            }
+private fun NfcIcon(sizeDp: Dp = 14.dp) {
+    val composition by rememberLottieComposition(LottieCompositionSpec.RawRes(R.raw.comms_nfc))
+    val progress by animateLottieCompositionAsState(
+        composition = composition,
+        iterations  = LottieConstants.IterateForever,
+        isPlaying   = true,
+    )
+    LottieAnimation(
+        composition = composition,
+        progress    = { progress },
+        modifier    = Modifier.size(sizeDp),
+    )
+}
+
+/**
+ * Signal-bar columns + generation icon, mirroring DownloadNetworkIcon's
+ * CELLULAR_* case layout. Bars stay hand-drawn (no asset for those); the
+ * generation label is now the matching looping Lottie asset
+ * (res/raw/comms_2g.json … comms_5g.json — see [CellularGeneration.toRawRes])
+ * instead of a canvas-drawn text glyph. UNKNOWN generation has no asset, so
+ * it falls back to the old "—" text label.
+ */
+@Composable
+private fun CellularIcon(generation: CellularGeneration, bars: Int?, sizeDp: Dp = 16.dp) {
+    Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(2.dp)) {
+        CellularBars(bars = bars, sizeDp = sizeDp)
+
+        val rawRes = generation.toRawRes()
+        if (rawRes != null) {
+            val composition by rememberLottieComposition(LottieCompositionSpec.RawRes(rawRes))
+            val progress by animateLottieCompositionAsState(
+                composition = composition,
+                iterations  = LottieConstants.IterateForever,
+                isPlaying   = true,
+            )
+            LottieAnimation(
+                composition = composition,
+                progress    = { progress },
+                modifier    = Modifier.size(sizeDp),
+            )
+        } else {
+            Text(
+                text       = generation.label(),
+                color      = Color.White,
+                fontSize   = 9.sp,
+                fontWeight = FontWeight.Bold,
+            )
         }
     }
 }
 
-/** Cellular generation label + small signal-bar columns, mirroring
- *  DownloadNetworkIcon's CELLULAR_* case layout. */
+/** Signal-strength bar columns, split out of the old combined CellularIcon
+ *  canvas so the generation glyph beside it can become a Lottie asset. */
 @Composable
-private fun CellularIcon(generation: CellularGeneration, bars: Int?, sizeDp: androidx.compose.ui.unit.Dp = 16.dp) {
+private fun CellularBars(bars: Int?, sizeDp: Dp) {
     Box(modifier = Modifier.size(sizeDp)) {
         Canvas(modifier = Modifier.size(sizeDp)) {
             val scale = size.width / 20f
@@ -268,59 +341,26 @@ private fun CellularIcon(generation: CellularGeneration, bars: Int?, sizeDp: and
                     size = androidx.compose.ui.geometry.Size(barW, barH)
                 )
             }
-
-            drawContext.canvas.nativeCanvas.apply {
-                val paint = android.graphics.Paint().apply {
-                    color = android.graphics.Color.WHITE
-                    textSize = 7.5f * scale
-                    typeface = android.graphics.Typeface.create(
-                        android.graphics.Typeface.DEFAULT_BOLD,
-                        android.graphics.Typeface.BOLD
-                    )
-                    textAlign = android.graphics.Paint.Align.CENTER
-                    isAntiAlias = true
-                }
-                drawText(
-                    generation.label(),
-                    this@Canvas.size.width / 2f,
-                    this@Canvas.size.height - 1f * scale,
-                    paint
-                )
-            }
         }
     }
 }
 
-/** Plain airplane glyph for the all-radios-off override state. */
+/** Airplane-mode indicator for the all-radios-off override state — loops
+ *  `res/raw/comms_airplane.json` next to the same "Airplane mode" label. */
 @Composable
-private fun AirplaneModeIcon(sizeDp: androidx.compose.ui.unit.Dp = 16.dp) {
+private fun AirplaneModeIcon(sizeDp: Dp = 16.dp) {
     Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(4.dp)) {
-        Box(modifier = Modifier.size(sizeDp)) {
-            Canvas(modifier = Modifier.size(sizeDp)) {
-                val scale = size.width / 20f
-                val sw = 1.4f * scale
-                val path = Path().apply {
-                    moveTo(10f * scale, 2f * scale)
-                    lineTo(11.5f * scale, 9f * scale)
-                    lineTo(18f * scale, 12.5f * scale)
-                    lineTo(18f * scale, 14f * scale)
-                    lineTo(11.5f * scale, 12f * scale)
-                    lineTo(10.5f * scale, 17f * scale)
-                    lineTo(12.5f * scale, 18.5f * scale)
-                    lineTo(12.5f * scale, 19.5f * scale)
-                    lineTo(10f * scale, 18.5f * scale)
-                    lineTo(7.5f * scale, 19.5f * scale)
-                    lineTo(7.5f * scale, 18.5f * scale)
-                    lineTo(9.5f * scale, 17f * scale)
-                    lineTo(8.5f * scale, 12f * scale)
-                    lineTo(2f * scale, 14f * scale)
-                    lineTo(2f * scale, 12.5f * scale)
-                    lineTo(8.5f * scale, 9f * scale)
-                    close()
-                }
-                drawPath(path, Color.White, style = Stroke(width = sw, cap = StrokeCap.Round))
-            }
-        }
+        val composition by rememberLottieComposition(LottieCompositionSpec.RawRes(R.raw.comms_airplane))
+        val progress by animateLottieCompositionAsState(
+            composition = composition,
+            iterations  = LottieConstants.IterateForever,
+            isPlaying   = true,
+        )
+        LottieAnimation(
+            composition = composition,
+            progress    = { progress },
+            modifier    = Modifier.size(sizeDp),
+        )
         Text(text = "Airplane mode", color = Color.White, fontSize = 11.sp)
     }
 }

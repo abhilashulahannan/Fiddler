@@ -1,5 +1,7 @@
 package com.example.fiddler.subapps.Fidland.phs3.weather
 
+import com.example.fiddler.R
+
 /**
  * WMO weather interpretation code → structured condition.
  *
@@ -44,6 +46,22 @@ fun WeatherCondition.toEmoji(): String = when (this) {
     WeatherCondition.RAIN           -> "🌧️"
     WeatherCondition.THUNDERSTORM   -> "⛈️"
     WeatherCondition.SNOW           -> "❄️"
+}
+
+/**
+ * Lottie asset (res/raw) matching each condition — replaces [toEmoji] for
+ * on-screen rendering. [toEmoji] is kept for any non-Compose context (system
+ * notification text, logs) that still wants a plain-text glyph.
+ */
+fun WeatherCondition.toRawRes(): Int = when (this) {
+    WeatherCondition.CLEAR          -> R.raw.weather_clear
+    WeatherCondition.PARTLY_CLOUDY  -> R.raw.weather_partlycloud
+    WeatherCondition.OVERCAST       -> R.raw.weather_overcast
+    WeatherCondition.FOG            -> R.raw.weather_fog
+    WeatherCondition.DRIZZLE        -> R.raw.weather_drizzle
+    WeatherCondition.RAIN           -> R.raw.weather_rain
+    WeatherCondition.THUNDERSTORM   -> R.raw.weather_thunderstorm
+    WeatherCondition.SNOW           -> R.raw.weather_snow
 }
 
 fun WeatherCondition.toLabel(): String = when (this) {

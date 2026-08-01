@@ -2,6 +2,7 @@ package com.example.fiddler.subapps.Fidland.phs3.ringmode
 
 import android.app.NotificationManager
 import android.media.AudioManager
+import com.example.fiddler.R
 
 // ── Mode enum ─────────────────────────────────────────────────────────────────
 
@@ -25,12 +26,20 @@ enum class RingMode {
         DND     -> "DND"
     }
 
-    /** Emoji icon used in the Indicator and State 5 buttons. */
+    /** Emoji icon — kept for any non-Compose context (notifications, logs). */
     val icon: String get() = when (this) {
         RING    -> "🔔"
         VIBRATE -> "📳"
         SILENT  -> "🔕"
         DND     -> "🌙"
+    }
+
+    /** Lottie asset (res/raw) used in the Indicator and State 5 buttons. */
+    val rawRes: Int get() = when (this) {
+        RING    -> R.raw.ring_ring
+        VIBRATE -> R.raw.ring_vibrate
+        SILENT  -> R.raw.ring_silent
+        DND     -> R.raw.ring_dnd
     }
 }
 

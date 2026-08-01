@@ -23,19 +23,26 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
+import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import com.airbnb.lottie.compose.LottieAnimation
+import com.airbnb.lottie.compose.LottieCompositionSpec
+import com.airbnb.lottie.compose.LottieConstants
+import com.airbnb.lottie.compose.animateLottieCompositionAsState
+import com.airbnb.lottie.compose.rememberLottieComposition
 import com.example.fiddler.subapps.Fidland.phs3.Phs3Handler
 
 /**
  * Phs3 module — Turn-by-turn Navigation.
  *
  * ── Location a (left of hole-punch) ──────────────────────────────────────────
- *   Direction arrow for the next turn. Call [LocationAIndicator] from the pill's
+ *   Direction icon for the next turn — looping Lottie asset (res/raw/nav_*.json,
+ *   see [TurnDirection.toRawRes]). Call [LocationAIndicator] from the pill's
  *   left-zone slot (same pattern as FootballPhs3Handler.LocationAIndicator).
- *   Arrow choices: ←  ↰  ↱  →  ↑  ⇦ (mild left) ⇨ (mild right)  U-turn glyphs.
  *
  * ── Location b (immediate right of hole-punch) ────────────────────────────────
  *   ETA to destination, e.g. "14 min". Updated every notification poll from Maps.
@@ -71,11 +78,7 @@ class NavigationPhs3Handler : Phs3Handler {
         val snapshot by NavigationRepository.flow.collectAsState()
         val next = snapshot.nextStep ?: return
 
-        Text(
-            text      = next.direction.toArrow(),
-            fontSize  = 16.sp,
-            color     = Color.White,
-        )
+        NavDirectionIcon(direction = next.direction, sizeDp = 16.dp)
     }
 
     // ── Indicator — location b (ETA) + location c (manoeuvre + distance) ─────
@@ -225,10 +228,10 @@ private fun NavStepCard(step: NavStep, isNext: Boolean) {
         )
 
         // Arrow
-        Text(
-            text     = step.direction.toArrow(),
-            fontSize = 18.sp,
-            modifier = Modifier.padding(horizontal = 8.dp),
+        NavDirectionIcon(
+            direction = step.direction,
+            sizeDp    = 18.dp,
+            modifier  = Modifier.padding(horizontal = 8.dp),
         )
 
         // Instruction + distance
@@ -262,10 +265,51 @@ private fun NavStepCard(step: NavStep, isNext: Boolean) {
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
+//  Direction icon
+// ─────────────────────────────────────────────────────────────────────────────
+
+/**
+ * Shared direction icon — plays the matching turn Lottie asset
+ * (res/raw/nav_*.json — see [TurnDirection.toRawRes]) on loop, flipped
+ * horizontally for U_TURN_RIGHT (see [TurnDirection.isMirrored]) since there's
+ * only one U-turn asset. Falls back to [TurnDirection.toArrow]'s "•" text
+ * glyph for UNKNOWN, which has no asset.
+ */
+@Composable
+private fun NavDirectionIcon(direction: TurnDirection, sizeDp: Dp, modifier: Modifier = Modifier) {
+    val rawRes = direction.toRawRes()
+    if (rawRes == null) {
+        Text(
+            text     = direction.toArrow(),
+            fontSize = (sizeDp.value * 0.75f).sp,
+            color    = Color.White,
+            modifier = modifier,
+        )
+        return
+    }
+
+    val composition by rememberLottieComposition(LottieCompositionSpec.RawRes(rawRes))
+    val progress by animateLottieCompositionAsState(
+        composition = composition,
+        iterations  = LottieConstants.IterateForever,
+        isPlaying   = true,
+    )
+    LottieAnimation(
+        composition = composition,
+        progress    = { progress },
+        modifier    = modifier
+            .size(sizeDp)
+            .graphicsLayer(scaleX = if (direction.isMirrored()) -1f else 1f),
+    )
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
 //  TurnDirection display helpers
 // ─────────────────────────────────────────────────────────────────────────────
 
-/** Unicode arrow shown in location a and inside cards. */
+/** Unicode arrow — kept as the UNKNOWN-direction fallback for [NavDirectionIcon]
+ *  (mirrors WeatherCondition.toEmoji(): the old glyph set stays around for
+ *  cases with no matching asset, rather than being deleted outright). */
 fun TurnDirection.toArrow(): String = when (this) {
     TurnDirection.STRAIGHT      -> "↑"
     TurnDirection.MILD_LEFT     -> "↖"

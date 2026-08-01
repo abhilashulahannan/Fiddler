@@ -1,5 +1,7 @@
 package com.example.fiddler.subapps.Fidland.phs3.comms
 
+import com.example.fiddler.R
+
 /**
  * Phs3 module — Comms — shared state models.
  *
@@ -32,6 +34,37 @@ data class BluetoothCommsInfo(
 )
 
 /**
+ * WiFi frequency band, detected from [android.net.wifi.WifiInfo.getFrequency]
+ * (MHz) once connected. Only the two bands with a dedicated Lottie asset are
+ * modeled — see [toRawRes].
+ */
+enum class WifiBand {
+    GHZ_2_4,
+    GHZ_5,
+}
+
+/**
+ * Buckets a raw WiFi frequency (MHz, from [android.net.wifi.WifiInfo.getFrequency])
+ * into [WifiBand], or null if it doesn't fall in either band's range (e.g.
+ * 6 GHz WiFi-6E networks — no dedicated asset yet, falls back to the bar
+ * icon; see [WifiCommsInfo.band] callers).
+ *
+ * Ranges follow the standard channel allocations: 2.4 GHz spans
+ * ~2400-2500 MHz, 5 GHz spans ~4900-5900 MHz.
+ */
+fun frequencyToWifiBand(freqMhz: Int): WifiBand? = when (freqMhz) {
+    in 2400..2500 -> WifiBand.GHZ_2_4
+    in 4900..5900 -> WifiBand.GHZ_5
+    else -> null
+}
+
+/** Lottie asset (res/raw) for the given [WifiBand]. */
+fun WifiBand.toRawRes(): Int = when (this) {
+    WifiBand.GHZ_2_4 -> R.raw.comms_wifi24g
+    WifiBand.GHZ_5   -> R.raw.comms_wifi5g
+}
+
+/**
  * WiFi radio state.
  *
  * @param isEnabled  Whether the WiFi adapter itself is powered on.
@@ -39,12 +72,16 @@ data class BluetoothCommsInfo(
  *                    a network (or SSID unavailable — see source kdoc).
  * @param signalBars Signal level in [0, 4], or null if not connected.
  * @param rssiDbm    Raw signal strength in dBm, for State 5 detail display.
+ * @param band       2.4 GHz vs 5 GHz, derived from the connection's raw
+ *                    frequency — null when not connected, or when the
+ *                    frequency falls outside both known ranges (e.g. 6 GHz).
  */
 data class WifiCommsInfo(
     val isEnabled: Boolean,
     val ssid: String? = null,
     val signalBars: Int? = null,
     val rssiDbm: Int? = null,
+    val band: WifiBand? = null,
 )
 
 /**
@@ -122,4 +159,20 @@ fun CellularGeneration.label(): String = when (this) {
     CellularGeneration.G4 -> "4G"
     CellularGeneration.G5 -> "5G"
     CellularGeneration.UNKNOWN -> "—"
+}
+
+/**
+ * Lottie asset (res/raw) matching each generation — replaces the hand-drawn
+ * generation-label text in CellularIcon's canvas. Null for UNKNOWN since
+ * there's no dedicated asset for it (falls back to the "—" text label — see
+ * [label]) — same "no icon = text fallback" idiom as
+ * WeatherPhs3Handler.WeatherIcon defaulting to R.raw.weather_temp, except
+ * here there's genuinely nothing to show rather than a placeholder icon.
+ */
+fun CellularGeneration.toRawRes(): Int? = when (this) {
+    CellularGeneration.G2 -> R.raw.comms_2g
+    CellularGeneration.G3 -> R.raw.comms_3g
+    CellularGeneration.G4 -> R.raw.comms_4g
+    CellularGeneration.G5 -> R.raw.comms_5g
+    CellularGeneration.UNKNOWN -> null
 }

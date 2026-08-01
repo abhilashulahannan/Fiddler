@@ -81,7 +81,7 @@ class FlashlightPhs3Handler(
     @Composable
     override fun Indicator() {
         val composition by rememberLottieComposition(
-            LottieCompositionSpec.RawRes(R.raw.flashlight_lottie)
+            LottieCompositionSpec.RawRes(R.raw.flashlight)
         )
         val progress by animateLottieCompositionAsState(
             composition  = composition,
@@ -124,7 +124,7 @@ class FlashlightPhs3Handler(
             ) {
                 // Lottie icon in a tinted circle — mirrors alarm / call header style.
                 val composition by rememberLottieComposition(
-                    LottieCompositionSpec.RawRes(R.raw.flashlight_lottie)
+                    LottieCompositionSpec.RawRes(R.raw.flashlight)
                 )
                 val progress by animateLottieCompositionAsState(
                     composition = composition,

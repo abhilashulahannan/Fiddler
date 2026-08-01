@@ -10,6 +10,7 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.layout.widthIn
 import androidx.compose.material3.Text
@@ -23,8 +24,15 @@ import androidx.compose.ui.text.font.FontStyle
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
+import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import com.airbnb.lottie.compose.LottieAnimation
+import com.airbnb.lottie.compose.LottieCompositionSpec
+import com.airbnb.lottie.compose.LottieConstants
+import com.airbnb.lottie.compose.animateLottieCompositionAsState
+import com.airbnb.lottie.compose.rememberLottieComposition
+import com.example.fiddler.R
 import com.example.fiddler.subapps.Fidland.phs3.Phs3Handler
 
 /**
@@ -34,19 +42,19 @@ import com.example.fiddler.subapps.Fidland.phs3.Phs3Handler
  * and never deactivates it. Data flows from [WeatherRepository.flow].
  *
  * ── Location A (left zone, 22 dp slot) ───────────────────────────────────────
- *   Current condition emoji — ☀️ ⛅ ☁️ 🌫️ 🌦️ 🌧️ ⛈️ ❄️
+ *   Current condition — looping Lottie icon (see [WeatherCondition.toRawRes]).
  *   Keeps the left zone informative even when another handler owns the right zone.
  *
  * ── Indicator (right zone, locations B + C) ───────────────────────────────────
  *   Two-line layout matching the music handler's song/artist pattern:
- *     Line 1 (white, bold):  emoji + temperature,  e.g. "🌤 32°"
+ *     Line 1 (white, bold):  condition icon + temperature,  e.g. [icon] 32°
  *     Line 2 (grey):         feels-like,            e.g. "feels 29°"
  *
  * ── State 5 (full-width strip, STATE5_HEIGHT tall) ───────────────────────────
  *   Row 1 — current detail bar:
- *     [emoji  temp]  [💧 humidity]  [💨 wind speed + dir]  [feels like]
+ *     [icon temp]  [humidity icon + %]  [wind icon + speed/dir]  [feels like]
  *   Row 2 — hourly forecast strip:
- *     Next 5 hours, each showing hour label + condition emoji + temperature.
+ *     Next 5 hours, each showing hour label + condition icon + temperature.
  *   Row 3 — sarcastic pun:
  *     Italic, dimmed — e.g. "Great day to touch grass. You won't, but it's there."
  *     Rotates randomly every 15-minute refresh cycle (see [WeatherCondition.pickSarcasm]).
@@ -54,28 +62,26 @@ import com.example.fiddler.subapps.Fidland.phs3.Phs3Handler
  * ── Loading state ─────────────────────────────────────────────────────────────
  *   Before the first fetch completes, [WeatherRepository.flow] emits null.
  *   All composables handle null gracefully with placeholder dashes/dots so
- *   the pill doesn't flash or crash on cold start.
+ *   the pill doesn't flash or crash on cold start. [WeatherIcon] falls back
+ *   to [R.raw.weather_temp] while condition is unknown.
  */
 class WeatherPhs3Handler : Phs3Handler {
 
     override val label: String = "Weather"
 
-    // Always show the condition emoji in the left-zone location-a slot.
+    // Always show the condition icon in the left-zone location-a slot.
     override val hasLocationA: Boolean = true
     override val locationAPriority: Int = 90  // after music (0), before most others (100)
 
-    // ── Location A — condition emoji ──────────────────────────────────────────
+    // ── Location A — condition icon ──────────────────────────────────────────
 
     @Composable
     override fun LocationAContent() {
         val snapshot by WeatherRepository.flow.collectAsState()
-        Text(
-            text     = snapshot?.condition?.toEmoji() ?: "🌡️",
-            fontSize = 14.sp,
-        )
+        WeatherIcon(condition = snapshot?.condition, size = 14.dp)
     }
 
-    // ── Indicator — emoji + temp / feels-like ─────────────────────────────────
+    // ── Indicator — icon + temp / feels-like ─────────────────────────────────
 
     @Composable
     override fun Indicator() {
@@ -86,17 +92,19 @@ class WeatherPhs3Handler : Phs3Handler {
             verticalArrangement = Arrangement.Center,
             modifier = Modifier.widthIn(max = 90.dp),
         ) {
-            // Line 1: emoji + temperature
-            Text(
-                text       = if (snapshot != null)
-                    "${snapshot!!.condition.toEmoji()} ${snapshot!!.tempC}°"
-                else "· · ·",
-                color      = Color.White,
-                fontSize   = 11.sp,
-                fontWeight = FontWeight.Bold,
-                maxLines   = 1,
-                overflow   = TextOverflow.Ellipsis,
-            )
+            // Line 1: condition icon + temperature
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                WeatherIcon(condition = snapshot?.condition, size = 13.dp)
+                Spacer(modifier = Modifier.width(3.dp))
+                Text(
+                    text       = if (snapshot != null) "${snapshot!!.tempC}°" else "· · ·",
+                    color      = Color.White,
+                    fontSize   = 11.sp,
+                    fontWeight = FontWeight.Bold,
+                    maxLines   = 1,
+                    overflow   = TextOverflow.Ellipsis,
+                )
+            }
             // Line 2: feels-like
             Text(
                 text     = if (snapshot != null) "feels ${snapshot!!.feelsLikeC}°" else "",
@@ -136,15 +144,16 @@ class WeatherPhs3Handler : Phs3Handler {
             ) {
                 // Condition + temp
                 DetailChip(
-                    label = "${snap.condition.toEmoji()} ${snap.tempC}°",
-                    bold  = true,
+                    iconRes = snap.condition.toRawRes(),
+                    label   = "${snap.tempC}°",
+                    bold    = true,
                 )
                 // Feels-like
                 DetailChip(label = "feels ${snap.feelsLikeC}°")
                 // Humidity
-                DetailChip(label = "💧 ${snap.humidityPct}%")
+                DetailChip(iconRes = R.raw.weather_humid, label = "${snap.humidityPct}%")
                 // Wind
-                DetailChip(label = "💨 ${snap.windSpeedKmh} ${snap.windDir}")
+                DetailChip(iconRes = R.raw.weather_wind, label = "${snap.windSpeedKmh} ${snap.windDir}")
             }
 
             // ── Row 2: hourly forecast strip ──────────────────────────────
@@ -183,17 +192,60 @@ class WeatherPhs3Handler : Phs3Handler {
 
 // ── Private composables ───────────────────────────────────────────────────────
 
-/** Single chip in the current-detail bar (Row 1). */
+/**
+ * Shared condition icon — plays the matching weather Lottie asset
+ * (res/raw/weather_*.json) on loop. Falls back to [R.raw.weather_temp]
+ * while [condition] is null (pre-fetch / loading state).
+ */
 @Composable
-private fun DetailChip(label: String, bold: Boolean = false) {
-    Text(
-        text       = label,
-        color      = if (bold) Color.White else Color(0xFFCCCCCC),
-        fontSize   = 10.sp,
-        fontWeight = if (bold) FontWeight.Bold else FontWeight.Normal,
-        maxLines   = 1,
-        overflow   = TextOverflow.Clip,
+private fun WeatherIcon(condition: WeatherCondition?, size: Dp) {
+    val composition by rememberLottieComposition(
+        LottieCompositionSpec.RawRes(condition?.toRawRes() ?: R.raw.weather_temp)
     )
+    val progress by animateLottieCompositionAsState(
+        composition = composition,
+        iterations  = LottieConstants.IterateForever,
+        isPlaying   = true,
+    )
+    LottieAnimation(
+        composition = composition,
+        progress    = { progress },
+        modifier    = Modifier.size(size),
+    )
+}
+
+/**
+ * Single chip in the current-detail bar (Row 1).
+ * Optionally shows a small looping Lottie icon before the label
+ * (condition / humidity / wind); omit [iconRes] for plain-text chips
+ * like "feels like".
+ */
+@Composable
+private fun DetailChip(label: String, bold: Boolean = false, iconRes: Int? = null) {
+    Row(verticalAlignment = Alignment.CenterVertically) {
+        if (iconRes != null) {
+            val composition by rememberLottieComposition(LottieCompositionSpec.RawRes(iconRes))
+            val progress by animateLottieCompositionAsState(
+                composition = composition,
+                iterations  = LottieConstants.IterateForever,
+                isPlaying   = true,
+            )
+            LottieAnimation(
+                composition = composition,
+                progress    = { progress },
+                modifier    = Modifier.size(12.dp),
+            )
+            Spacer(modifier = Modifier.width(2.dp))
+        }
+        Text(
+            text       = label,
+            color      = if (bold) Color.White else Color(0xFFCCCCCC),
+            fontSize   = 10.sp,
+            fontWeight = if (bold) FontWeight.Bold else FontWeight.Normal,
+            maxLines   = 1,
+            overflow   = TextOverflow.Clip,
+        )
+    }
 }
 
 /** One column in the hourly forecast strip (Row 2). */
@@ -209,10 +261,7 @@ private fun HourlySlotView(slot: HourlySlot) {
             fontSize = 8.sp,
             maxLines = 1,
         )
-        Text(
-            text     = slot.condition.toEmoji(),
-            fontSize = 11.sp,
-        )
+        WeatherIcon(condition = slot.condition, size = 11.dp)
         Text(
             text     = "${slot.tempC}°",
             color    = Color.White,
