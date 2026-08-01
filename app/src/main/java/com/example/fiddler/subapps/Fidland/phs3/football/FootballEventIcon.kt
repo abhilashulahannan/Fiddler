@@ -1,18 +1,11 @@
 package com.example.fiddler.subapps.Fidland.phs3.football
 
-import androidx.compose.foundation.layout.Box
-import androidx.compose.foundation.layout.size
 import androidx.compose.runtime.Composable
-import androidx.compose.runtime.getValue
-import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
-import com.airbnb.lottie.compose.LottieAnimation
-import com.airbnb.lottie.compose.LottieCompositionSpec
-import com.airbnb.lottie.compose.LottieConstants
-import com.airbnb.lottie.compose.animateLottieCompositionAsState
-import com.airbnb.lottie.compose.rememberLottieComposition
 import com.example.fiddler.R
+import com.example.fiddler.ui.icons.LottieIconColors
+import com.example.fiddler.ui.icons.MonoLottieIcon
 
 /**
  * Phs3 Football — Location-a event icon.
@@ -51,18 +44,16 @@ fun FootballEventIcon(
         EventType.YELLOW_RED_CARD  -> R.raw.football_card_ry
     }
 
-    val composition by rememberLottieComposition(LottieCompositionSpec.RawRes(rawRes))
-    val progress by animateLottieCompositionAsState(
-        composition = composition,
-        iterations  = LottieConstants.IterateForever,
-        isPlaying   = true,
-    )
-
-    Box(modifier = Modifier.size(size)) {
-        LottieAnimation(
-            composition = composition,
-            progress    = { progress },
-            modifier    = Modifier.size(size),
-        )
+    // football_card_ry is one shared asset for all three card variants, so
+    // the yellow-vs-red distinction has to be picked here rather than via
+    // the default rawRes -> colour lookup (which can only give the asset
+    // one colour).
+    val color = when (type) {
+        EventType.YELLOW_CARD                        -> LottieIconColors.footballCardYellow
+        EventType.RED_CARD, EventType.YELLOW_RED_CARD -> LottieIconColors.footballCardRed
+        EventType.GOAL, EventType.SUBSTITUTION,
+        EventType.OTHER                                -> LottieIconColors.footballGoal
     }
+
+    MonoLottieIcon(rawRes = rawRes, size = size, color = color)
 }

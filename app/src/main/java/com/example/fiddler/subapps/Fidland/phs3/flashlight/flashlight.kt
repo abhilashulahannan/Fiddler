@@ -32,13 +32,9 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
-import com.airbnb.lottie.compose.LottieAnimation
-import com.airbnb.lottie.compose.LottieCompositionSpec
-import com.airbnb.lottie.compose.LottieConstants
-import com.airbnb.lottie.compose.animateLottieCompositionAsState
-import com.airbnb.lottie.compose.rememberLottieComposition
 import com.example.fiddler.R
 import com.example.fiddler.subapps.Fidland.phs3.Phs3Handler
+import com.example.fiddler.ui.icons.MonoLottieIcon
 
 /**
  * Phs3 module — Flashlight.
@@ -80,24 +76,11 @@ class FlashlightPhs3Handler(
 
     @Composable
     override fun Indicator() {
-        val composition by rememberLottieComposition(
-            LottieCompositionSpec.RawRes(R.raw.flashlight)
-        )
-        val progress by animateLottieCompositionAsState(
-            composition  = composition,
-            iterations   = LottieConstants.IterateForever,
-            isPlaying    = true,
-        )
-
         Box(
             modifier          = Modifier.size(26.dp),
             contentAlignment  = Alignment.Center
         ) {
-            LottieAnimation(
-                composition = composition,
-                progress    = { progress },
-                modifier    = Modifier.size(26.dp)
-            )
+            MonoLottieIcon(rawRes = R.raw.flashlight, size = 26.dp)
         }
     }
 
@@ -123,14 +106,6 @@ class FlashlightPhs3Handler(
                     .padding(horizontal = 16.dp, vertical = 10.dp)
             ) {
                 // Lottie icon in a tinted circle — mirrors alarm / call header style.
-                val composition by rememberLottieComposition(
-                    LottieCompositionSpec.RawRes(R.raw.flashlight)
-                )
-                val progress by animateLottieCompositionAsState(
-                    composition = composition,
-                    iterations  = LottieConstants.IterateForever,
-                    isPlaying   = true,
-                )
                 Box(
                     modifier = Modifier
                         .size(36.dp)
@@ -138,11 +113,7 @@ class FlashlightPhs3Handler(
                         .background(Color(0xFF2B2B1A)),
                     contentAlignment = Alignment.Center
                 ) {
-                    LottieAnimation(
-                        composition = composition,
-                        progress    = { progress },
-                        modifier    = Modifier.size(22.dp)
-                    )
+                    MonoLottieIcon(rawRes = R.raw.flashlight, size = 22.dp)
                 }
 
                 Column(modifier = Modifier.weight(1f)) {

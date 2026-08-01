@@ -1,6 +1,7 @@
 package com.example.fiddler.subapps.Fidland.phs3
 
 import androidx.compose.runtime.Composable
+import androidx.compose.ui.unit.Dp
 
 /**
  * Contract that every phs3 module must implement.
@@ -110,8 +111,22 @@ interface Phs3Handler {
     fun hasState5Content(): Boolean = true
 
     /**
+     * Optional per-handler override for the STATE5 strip height.
+     *
+     * [IslandConfig.STATE5_HEIGHT] is a single value shared by every phs3
+     * module. Most handlers fit fine within it, but a handler whose
+     * [State5Content] genuinely needs more (or less) room — e.g. an extra
+     * row of larger tap targets — can return its own height here instead
+     * of everyone else having to grow to match.
+     *
+     * Return null (the default) to use the shared [IslandConfig.STATE5_HEIGHT].
+     */
+    val state5HeightOverride: Dp? get() = null
+
+    /**
      * Content strip shown in STATE5.
-     * Canvas size: IslandConfig.STATE4_MAX_WIDTH × IslandConfig.STATE5_HEIGHT.
+     * Canvas size: IslandConfig.STATE4_MAX_WIDTH × IslandConfig.STATE5_HEIGHT
+     * (or [state5HeightOverride] when set).
      * Rendered inside a fillMaxSize Box.
      *
      * Only called when [hasState5Content] returns true.

@@ -22,13 +22,9 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
-import com.airbnb.lottie.compose.LottieAnimation
-import com.airbnb.lottie.compose.LottieCompositionSpec
-import com.airbnb.lottie.compose.LottieConstants
-import com.airbnb.lottie.compose.animateLottieCompositionAsState
-import com.airbnb.lottie.compose.rememberLottieComposition
 import com.example.fiddler.R
 import com.example.fiddler.subapps.Fidland.phs3.Phs3Handler
+import com.example.fiddler.ui.icons.MonoLottieIcon
 
 /**
  * Phs3 module — Comms.
@@ -169,17 +165,7 @@ private fun CommsDetailRow(title: String, detail: String) {
 @Composable
 private fun BluetoothIcon(connected: Boolean, sizeDp: Dp = 14.dp) {
     Box(modifier = Modifier.size(sizeDp)) {
-        val composition by rememberLottieComposition(LottieCompositionSpec.RawRes(R.raw.comms_bt))
-        val progress by animateLottieCompositionAsState(
-            composition = composition,
-            iterations  = LottieConstants.IterateForever,
-            isPlaying   = true,
-        )
-        LottieAnimation(
-            composition = composition,
-            progress    = { progress },
-            modifier    = Modifier.size(sizeDp),
-        )
+        MonoLottieIcon(rawRes = R.raw.comms_bt, size = sizeDp)
         if (connected) {
             Canvas(modifier = Modifier.size(sizeDp)) {
                 val scale = size.width / 14f
@@ -209,17 +195,7 @@ private fun BluetoothIcon(connected: Boolean, sizeDp: Dp = 14.dp) {
 private fun WifiIcon(wifi: WifiCommsInfo, sizeDp: Dp = 14.dp) {
     val band = wifi.band
     if (band != null) {
-        val composition by rememberLottieComposition(LottieCompositionSpec.RawRes(band.toRawRes()))
-        val progress by animateLottieCompositionAsState(
-            composition = composition,
-            iterations  = LottieConstants.IterateForever,
-            isPlaying   = true,
-        )
-        LottieAnimation(
-            composition = composition,
-            progress    = { progress },
-            modifier    = Modifier.size(sizeDp),
-        )
+        MonoLottieIcon(rawRes = band.toRawRes(), size = sizeDp)
     } else {
         WifiSignalBarsIcon(bars = wifi.signalBars, sizeDp = sizeDp)
     }
@@ -266,17 +242,7 @@ private fun WifiSignalBarsIcon(bars: Int?, sizeDp: Dp = 14.dp) {
  *  stand-in until this asset existed). */
 @Composable
 private fun NfcIcon(sizeDp: Dp = 14.dp) {
-    val composition by rememberLottieComposition(LottieCompositionSpec.RawRes(R.raw.comms_nfc))
-    val progress by animateLottieCompositionAsState(
-        composition = composition,
-        iterations  = LottieConstants.IterateForever,
-        isPlaying   = true,
-    )
-    LottieAnimation(
-        composition = composition,
-        progress    = { progress },
-        modifier    = Modifier.size(sizeDp),
-    )
+    MonoLottieIcon(rawRes = R.raw.comms_nfc, size = sizeDp)
 }
 
 /**
@@ -294,17 +260,7 @@ private fun CellularIcon(generation: CellularGeneration, bars: Int?, sizeDp: Dp 
 
         val rawRes = generation.toRawRes()
         if (rawRes != null) {
-            val composition by rememberLottieComposition(LottieCompositionSpec.RawRes(rawRes))
-            val progress by animateLottieCompositionAsState(
-                composition = composition,
-                iterations  = LottieConstants.IterateForever,
-                isPlaying   = true,
-            )
-            LottieAnimation(
-                composition = composition,
-                progress    = { progress },
-                modifier    = Modifier.size(sizeDp),
-            )
+            MonoLottieIcon(rawRes = rawRes, size = sizeDp)
         } else {
             Text(
                 text       = generation.label(),
@@ -350,17 +306,7 @@ private fun CellularBars(bars: Int?, sizeDp: Dp) {
 @Composable
 private fun AirplaneModeIcon(sizeDp: Dp = 16.dp) {
     Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(4.dp)) {
-        val composition by rememberLottieComposition(LottieCompositionSpec.RawRes(R.raw.comms_airplane))
-        val progress by animateLottieCompositionAsState(
-            composition = composition,
-            iterations  = LottieConstants.IterateForever,
-            isPlaying   = true,
-        )
-        LottieAnimation(
-            composition = composition,
-            progress    = { progress },
-            modifier    = Modifier.size(sizeDp),
-        )
+        MonoLottieIcon(rawRes = R.raw.comms_airplane, size = sizeDp)
         Text(text = "Airplane mode", color = Color.White, fontSize = 11.sp)
     }
 }

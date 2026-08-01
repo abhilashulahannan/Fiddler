@@ -20,13 +20,9 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
-import com.airbnb.lottie.compose.LottieAnimation
-import com.airbnb.lottie.compose.LottieCompositionSpec
-import com.airbnb.lottie.compose.LottieConstants
-import com.airbnb.lottie.compose.animateLottieCompositionAsState
-import com.airbnb.lottie.compose.rememberLottieComposition
 import com.example.fiddler.R
 import com.example.fiddler.subapps.Fidland.phs3.Phs3Handler
+import com.example.fiddler.ui.icons.MonoLottieIcon
 import kotlinx.coroutines.delay
 
 /**
@@ -251,17 +247,5 @@ class IdleThoughtsHandler : Phs3Handler {
 /** Looping `nhi_lama.json` glyph shown beside the idle-thoughts stream. */
 @Composable
 private fun NhiLamaIcon(size: androidx.compose.ui.unit.Dp) {
-    val composition by rememberLottieComposition(
-        LottieCompositionSpec.RawRes(R.raw.nhi_lama)
-    )
-    val progress by animateLottieCompositionAsState(
-        composition = composition,
-        iterations  = LottieConstants.IterateForever,
-        isPlaying   = true,
-    )
-    LottieAnimation(
-        composition = composition,
-        progress    = { progress },
-        modifier    = Modifier.size(size),
-    )
+    MonoLottieIcon(rawRes = R.raw.nhi_lama, size = size)
 }

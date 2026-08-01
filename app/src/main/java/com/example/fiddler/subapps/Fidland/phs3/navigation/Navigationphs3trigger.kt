@@ -28,12 +28,8 @@ import kotlinx.coroutines.launch
  *   }
  *
  * ── Location-a wiring ─────────────────────────────────────────────────────────
- * Place [NavigationPhs3Handler.LocationAIndicator] in the pill's left-zone
- * composable (location a), the same slot used by AlbumArtSpinner for music:
- *
- *   if (activePhs3Handler is NavigationPhs3Handler) {
- *       (activePhs3Handler as NavigationPhs3Handler).LocationAIndicator()
- *   }
+ * [NavigationPhs3Handler] opts in via hasLocationA = true / LocationAContent().
+ * overlay_fidland_pill wires it automatically — no manual cast needed.
  *
  * ── Debugging ────────────────────────────────────────────────────────────────
  * Logs to Phs3DebugLog (visible in the Debugging screen): trigger start/stop,

@@ -168,7 +168,7 @@ fun FidlandIsland(
 
     val targetHeight: Dp = when (phase) {
         PillPhase.DASHBOARD -> IslandConfig.STATE4_HEIGHT
-        PillPhase.STATE5    -> IslandConfig.STATE5_HEIGHT
+        PillPhase.STATE5    -> activePhs3Handler?.state5HeightOverride ?: IslandConfig.STATE5_HEIGHT
         else                -> IslandConfig.BASE_SIZE
     }
 

@@ -1,7 +1,5 @@
 package com.example.fiddler.subapps.Fidland.phs3.battery
 
-import com.example.fiddler.R
-
 /**
  * Phs3 module — Battery indicator — shared state.
  *
@@ -37,10 +35,6 @@ data class BatteryInfo(
     /** Whether the phs3 slot should be showing at all — see class kdoc. */
     val isActive: Boolean
         get() = isCharging || (level <= LOW_BATTERY_THRESHOLD_PERCENT)
-
-    /** Which Lottie asset (res/raw) represents the current state. */
-    val rawRes: Int
-        get() = if (isCharging) R.raw.battery_charge else R.raw.battery_normal
 }
 
 /** Returned before the first ACTION_BATTERY_CHANGED broadcast arrives. */

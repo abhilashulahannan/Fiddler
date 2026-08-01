@@ -29,20 +29,16 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
-import com.airbnb.lottie.compose.LottieAnimation
-import com.airbnb.lottie.compose.LottieCompositionSpec
-import com.airbnb.lottie.compose.LottieConstants
-import com.airbnb.lottie.compose.animateLottieCompositionAsState
-import com.airbnb.lottie.compose.rememberLottieComposition
 import com.example.fiddler.subapps.Fidland.phs3.Phs3Handler
+import com.example.fiddler.ui.icons.MonoLottieIcon
 
 /**
  * Phs3 module — Turn-by-turn Navigation.
  *
  * ── Location a (left of hole-punch) ──────────────────────────────────────────
  *   Direction icon for the next turn — looping Lottie asset (res/raw/nav_*.json,
- *   see [TurnDirection.toRawRes]). Call [LocationAIndicator] from the pill's
- *   left-zone slot (same pattern as FootballPhs3Handler.LocationAIndicator).
+ *   see [TurnDirection.toRawRes]). Opt-in via [hasLocationA] / [LocationAContent]
+ *   — wired automatically by overlay_fidland_pill.
  *
  * ── Location b (immediate right of hole-punch) ────────────────────────────────
  *   ETA to destination, e.g. "14 min". Updated every notification poll from Maps.
@@ -62,10 +58,7 @@ import com.example.fiddler.subapps.Fidland.phs3.Phs3Handler
  * 2. In your NotificationListenerService route Maps notifications:
  *      NavigationRepository.onNotification(sbn)
  *      NavigationRepository.onNavigationEnded()
- * 3. In the pill left-zone composable:
- *      if (activePhs3Handler is NavigationPhs3Handler) {
- *          (activePhs3Handler as NavigationPhs3Handler).LocationAIndicator()
- *      }
+ * Location-a is wired automatically via [hasLocationA] / [LocationAContent].
  */
 class NavigationPhs3Handler : Phs3Handler {
 
@@ -73,8 +66,10 @@ class NavigationPhs3Handler : Phs3Handler {
 
     // ── Location a — direction arrow ──────────────────────────────────────────
 
+    override val hasLocationA: Boolean = true
+
     @Composable
-    fun LocationAIndicator() {
+    override fun LocationAContent() {
         val snapshot by NavigationRepository.flow.collectAsState()
         val next = snapshot.nextStep ?: return
 
@@ -288,16 +283,9 @@ private fun NavDirectionIcon(direction: TurnDirection, sizeDp: Dp, modifier: Mod
         return
     }
 
-    val composition by rememberLottieComposition(LottieCompositionSpec.RawRes(rawRes))
-    val progress by animateLottieCompositionAsState(
-        composition = composition,
-        iterations  = LottieConstants.IterateForever,
-        isPlaying   = true,
-    )
-    LottieAnimation(
-        composition = composition,
-        progress    = { progress },
-        modifier    = modifier
+    MonoLottieIcon(
+        rawRes   = rawRes,
+        modifier = modifier
             .size(sizeDp)
             .graphicsLayer(scaleX = if (direction.isMirrored()) -1f else 1f),
     )

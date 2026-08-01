@@ -13,13 +13,9 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
-import com.airbnb.lottie.compose.LottieAnimation
-import com.airbnb.lottie.compose.LottieCompositionSpec
-import com.airbnb.lottie.compose.LottieConstants
-import com.airbnb.lottie.compose.animateLottieCompositionAsState
-import com.airbnb.lottie.compose.rememberLottieComposition
 import com.example.fiddler.R
 import com.example.fiddler.subapps.Fidland.phs3.Phs3Handler
+import com.example.fiddler.ui.icons.MonoLottieIcon
 
 /**
  * Phs3 module — Delivery tracking (food, parcel, ride).
@@ -38,19 +34,7 @@ class DeliveryPhs3Handler : Phs3Handler {
             verticalAlignment = Alignment.CenterVertically,
             horizontalArrangement = Arrangement.spacedBy(4.dp)
         ) {
-            val composition by rememberLottieComposition(
-                LottieCompositionSpec.RawRes(R.raw.delivery)
-            )
-            val progress by animateLottieCompositionAsState(
-                composition = composition,
-                iterations  = LottieConstants.IterateForever,
-                isPlaying   = true,
-            )
-            LottieAnimation(
-                composition = composition,
-                progress    = { progress },
-                modifier    = Modifier.size(14.dp),
-            )
+            MonoLottieIcon(rawRes = R.raw.delivery, size = 14.dp)
             Text(text = "12m", fontSize = 11.sp, color = Color.White)
         }
     }

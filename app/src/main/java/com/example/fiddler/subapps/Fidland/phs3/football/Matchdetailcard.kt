@@ -46,12 +46,8 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import coil.compose.AsyncImage
 import coil.request.ImageRequest
-import com.airbnb.lottie.compose.LottieAnimation
-import com.airbnb.lottie.compose.LottieCompositionSpec
-import com.airbnb.lottie.compose.LottieConstants
-import com.airbnb.lottie.compose.animateLottieCompositionAsState
-import com.airbnb.lottie.compose.rememberLottieComposition
 import com.example.fiddler.R
+import com.example.fiddler.ui.icons.MonoLottieIcon
 
 // ─────────────────────────────────────────────────────────────────────────────
 //  Supplemental data models
@@ -1122,17 +1118,7 @@ private fun StadiumImage(
  */
 @Composable
 private fun FootballStadiumIcon(sizeDp: androidx.compose.ui.unit.Dp) {
-    val composition by rememberLottieComposition(LottieCompositionSpec.RawRes(R.raw.football_stadium))
-    val progress by animateLottieCompositionAsState(
-        composition = composition,
-        iterations  = LottieConstants.IterateForever,
-        isPlaying   = true,
-    )
-    LottieAnimation(
-        composition = composition,
-        progress    = { progress },
-        modifier    = Modifier.size(sizeDp),
-    )
+    MonoLottieIcon(rawRes = R.raw.football_stadium, size = sizeDp)
 }
 
 // ─────────────────────────────────────────────────────────────────────────────

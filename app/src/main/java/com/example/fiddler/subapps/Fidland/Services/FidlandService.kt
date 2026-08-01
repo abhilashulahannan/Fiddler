@@ -8,6 +8,7 @@ import android.view.WindowManager
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.collectAsState
 import androidx.compose.ui.platform.ComposeView
+import androidx.compose.ui.unit.Dp
 import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.LifecycleOwner
 import androidx.lifecycle.LifecycleRegistry
@@ -28,6 +29,7 @@ import com.example.fiddler.subapps.Fidland.music.YTMusicListener
 import com.example.fiddler.subapps.Fidland.phs3.Phs3Handler
 import com.example.fiddler.subapps.Fidland.phs3.Phs3Manager
 import com.example.fiddler.subapps.Fidland.phs3.alarm.AlarmPhs3Trigger
+import com.example.fiddler.subapps.Fidland.phs3.battery.BatteryPhs3Trigger
 import com.example.fiddler.subapps.Fidland.phs3.download.DownloadPhs3Trigger
 import com.example.fiddler.subapps.Fidland.phs3.flashlight.FlashlightPhs3Trigger
 import com.example.fiddler.subapps.Fidland.phs3.football.FootballPhs3Handler
@@ -51,6 +53,7 @@ import kotlinx.coroutines.launch
 import com.example.fiddler.subapps.Fidland.phs3.idle.IdleThoughtsHandler
 import com.example.fiddler.subapps.Fidland.phs3.weather.WeatherPhs3Trigger
 import com.example.fiddler.subapps.Fidland.phs3.call.CallPhs3Trigger
+import com.example.fiddler.subapps.Fidland.phs3.call.WhatsAppNotificationSource
 import com.example.fiddler.subapps.Fidland.phs3.ringmode.RingmodePhs3Trigger
 import com.example.fiddler.subapps.Fidland.phs3.timer.TimerPhs3Trigger
 
@@ -82,6 +85,7 @@ class FidlandService : Service(), LifecycleOwner, SavedStateRegistryOwner {
     private lateinit var alarmTrigger: AlarmPhs3Trigger
     private lateinit var footballTrigger: FootballPhs3Trigger
     private lateinit var downloadTrigger: DownloadPhs3Trigger
+    private lateinit var batteryTrigger: BatteryPhs3Trigger
 
     // ── Recording ──────────────────────────────────────────────────────────────
     private lateinit var recorderSource: RecorderNotificationSource
@@ -90,6 +94,7 @@ class FidlandService : Service(), LifecycleOwner, SavedStateRegistryOwner {
     private lateinit var weatherTrigger: WeatherPhs3Trigger
 
     private lateinit var callTrigger: CallPhs3Trigger
+    private lateinit var whatsAppSource: WhatsAppNotificationSource
 
     private lateinit var ringmodeTrigger: RingmodePhs3Trigger
 
@@ -121,8 +126,12 @@ class FidlandService : Service(), LifecycleOwner, SavedStateRegistryOwner {
 
     private fun setPillPhase(newPhase: PillPhase) {
         pillPhase.value = newPhase
-        overlayManager.repositionTouchBoxForPhase(newPhase)
+        overlayManager.repositionTouchBoxForPhase(newPhase, state5HeightOverrideFor(newPhase))
     }
+
+    /** Non-null only for STATE5, and only when the active handler wants a custom strip height. */
+    private fun state5HeightOverrideFor(phase: PillPhase): Dp? =
+        if (phase == PillPhase.STATE5) activePhs3Handler.value?.state5HeightOverride else null
 
     val activePhs3Handler = mutableStateOf<Phs3Handler?>(null)
     val qualifiedPhs3Handlers = mutableStateOf<List<Phs3Handler>>(emptyList())
@@ -219,15 +228,28 @@ class FidlandService : Service(), LifecycleOwner, SavedStateRegistryOwner {
         callTrigger = CallPhs3Trigger(applicationContext, serviceScope, phs3Manager)
         callTrigger.start()
 
+        // Feeds phs5's recent-messages strip (call.kt / RecentMessages.kt) —
+        // notification-only, no start()/stop() lifecycle of its own, so it's
+        // safe to always wire up regardless of whether calling features are on.
+        whatsAppSource = WhatsAppNotificationSource()
+        NotificationListenerService.whatsAppSource = whatsAppSource
+
         ringmodeTrigger = RingmodePhs3Trigger(applicationContext, phs3Manager)
         ringmodeTrigger.start()
 
         timerTrigger = TimerPhs3Trigger(serviceScope, phs3Manager)
         timerTrigger.start()
 
+        // ── Battery trigger ────────────────────────────────────────────────────
+        // No permission required (plain sticky broadcast, same tier as
+        // Ringmode), so — like Weather/Ringmode/Timer above — this starts
+        // unconditionally rather than gating behind a settings toggle.
+        batteryTrigger = BatteryPhs3Trigger(applicationContext, this)
+        batteryTrigger.start()
+
         // ── Idle thoughts fallback ─────────────────────────────────────────────────
-    // Always registered last so it sits at the back of the priority queue.
-    // Visible only when every other phs3 handler has unregistered.
+        // Always registered last so it sits at the back of the priority queue.
+        // Visible only when every other phs3 handler has unregistered.
         phs3Manager.register(IdleThoughtsHandler())
 
         // ── Observe Phs3Manager → drive pill phase + activePhs3Handler ─────────
@@ -239,7 +261,7 @@ class FidlandService : Service(), LifecycleOwner, SavedStateRegistryOwner {
         serviceScope.launch {
             phs3Manager.activeHandler.collect { handler ->
                 activePhs3Handler.value = handler
-                val netEnabled = prefs.getBoolean("network_traffic", false)
+                val netEnabled = prefs.getBoolean("net_speed", false)
                 // Only update the compact pill phase. Never override STATE5 or
                 // DASHBOARD from here — those are driven by gesture events.
                 if (pillPhase.value != PillPhase.STATE5 &&
@@ -301,7 +323,7 @@ class FidlandService : Service(), LifecycleOwner, SavedStateRegistryOwner {
 
         overlayManager = OverlayManagerCompose(this, windowManager)
         overlayManager.addPillView(pillView)
-        overlayManager.addTouchBoxView(touchBoxView, pillPhase.value)
+        overlayManager.addTouchBoxView(touchBoxView, pillPhase.value, state5HeightOverrideFor(pillPhase.value))
         touchBoxViewRef = touchBoxView
     }
 
@@ -371,7 +393,7 @@ class FidlandService : Service(), LifecycleOwner, SavedStateRegistryOwner {
                     pillVisible.value = true           // triggers slide-in animation
                     val restorePhase = if (isExpanded.value) PillPhase.DASHBOARD else pillPhase.value
                     touchBoxViewRef?.let {
-                        overlayManager.addTouchBoxView(it, restorePhase)
+                        overlayManager.addTouchBoxView(it, restorePhase, state5HeightOverrideFor(restorePhase))
                     }
                 }
             }
@@ -417,7 +439,7 @@ class FidlandService : Service(), LifecycleOwner, SavedStateRegistryOwner {
     private fun collapseToCompact() {
         isExpanded.value = false
         // Resolve which compact phase is correct right now
-        val netEnabled = prefs.getBoolean("network_traffic", false)
+        val netEnabled = prefs.getBoolean("net_speed", false)
         val hasPhs3    = activePhs3Handler.value != null
         val targetPhase = when {
             netEnabled && hasPhs3 -> PillPhase.BOTH_EXPANDED
@@ -454,7 +476,7 @@ class FidlandService : Service(), LifecycleOwner, SavedStateRegistryOwner {
     // ── Internal ──────────────────────────────────────────────────────────────
 
     private fun resolveInitialPhase(): PillPhase {
-        val netEnabled = prefs.getBoolean("network_traffic", false)
+        val netEnabled = prefs.getBoolean("net_speed", false)
         return if (netEnabled) PillPhase.LEFT_EXPANDED else PillPhase.CIRCLE
     }
 
@@ -478,21 +500,23 @@ class FidlandService : Service(), LifecycleOwner, SavedStateRegistryOwner {
         ytMusicListener.stop()
         if (::musicPhs3Trigger.isInitialized)   musicPhs3Trigger.stop()
         if (::callTrigger.isInitialized) callTrigger.stop()
+        if (::whatsAppSource.isInitialized) NotificationListenerService.whatsAppSource = null
         if (::ringmodeTrigger.isInitialized) ringmodeTrigger.stop()
         if (::flashlightTrigger.isInitialized)  flashlightTrigger.stop()
         if (::navigationTrigger.isInitialized)  navigationTrigger.stop()
         if (::alarmTrigger.isInitialized)       alarmTrigger.stop()
         if (::footballTrigger.isInitialized)    footballTrigger.stop()
+        if (::batteryTrigger.isInitialized)     batteryTrigger.stop()
         if (::recordTrigger.isInitialized) {
             recordTrigger.stop()
             NotificationListenerService.recorderSource = null
-        if (::timerTrigger.isInitialized) timerTrigger.stop()
+            if (::timerTrigger.isInitialized) timerTrigger.stop()
 
-        if (::downloadTrigger.isInitialized) {
-            downloadTrigger.stop()
-            NotificationListenerService.downloadSource = null
-        }
-        if (::weatherTrigger.isInitialized) weatherTrigger.stop()
+            if (::downloadTrigger.isInitialized) {
+                downloadTrigger.stop()
+                NotificationListenerService.downloadSource = null
+            }
+            if (::weatherTrigger.isInitialized) weatherTrigger.stop()
             hideJob?.cancel()
             overlayManager.removeAll()
             serviceScope.cancel()

@@ -12,20 +12,12 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.draw.drawWithContent
 import androidx.compose.ui.draw.rotate
-import androidx.compose.ui.graphics.BlendMode
 import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.graphics.CompositingStrategy
-import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
-import com.airbnb.lottie.compose.LottieAnimation
-import com.airbnb.lottie.compose.LottieCompositionSpec
-import com.airbnb.lottie.compose.LottieConstants
-import com.airbnb.lottie.compose.animateLottieCompositionAsState
-import com.airbnb.lottie.compose.rememberLottieComposition
 import com.example.fiddler.R
+import com.example.fiddler.ui.icons.MonoLottieIcon
 
 /**
  * Phs3 Alarm — alarm-clock bell icon.
@@ -38,11 +30,12 @@ import com.example.fiddler.R
  * file — colour sweeping green → yellow → red, plus a wiggle in the final
  * stretch — is preserved rather than dropped along with the hand-drawn
  * paths:
- *   • Colour: the Lottie output is recoloured per-frame via a `SrcAtop`
- *     blend over an offscreen-composited layer, which treats the asset's
- *     drawn pixels as a stencil and repaints them solid — the same trick
- *     used for monochrome icon tinting, since LottieAnimation has no
- *     built-in colour-filter parameter.
+ *   • Colour: animated here (green → yellow → red by [remainingMs]) and
+ *     passed as an explicit `color` override to [MonoLottieIcon], which
+ *     does the actual per-frame stencil recolour — see its kdoc for the
+ *     mechanics. This is one of the "dynamic exceptions" noted in
+ *     [com.example.fiddler.ui.icons.LottieIconColors]: the colour depends
+ *     on runtime state, so it can't be a static config entry.
  *   • Wiggle: unchanged — still a ±6° rotation on the whole icon `Box`,
  *     driven by the same [shouldWiggle] threshold as before.
  *
@@ -83,34 +76,15 @@ fun AlarmClockIcon(
     )
     val rotation = if (wiggle) wiggleAngle else 0f
 
-    val composition by rememberLottieComposition(LottieCompositionSpec.RawRes(R.raw.alarm))
-    val progress by animateLottieCompositionAsState(
-        composition = composition,
-        iterations  = LottieConstants.IterateForever,
-        isPlaying   = true,
-    )
-
     Box(
         modifier = Modifier
             .size(size)
             .rotate(rotation)
     ) {
-        LottieAnimation(
-            composition = composition,
-            progress    = { progress },
-            modifier    = Modifier
-                .size(size)
-                // Offscreen compositing is required for the SrcAtop blend
-                // below to only affect this layer's own drawn pixels
-                // rather than whatever sits underneath it in the pill.
-                .graphicsLayer(compositingStrategy = CompositingStrategy.Offscreen)
-                .drawWithContent {
-                    drawContent()
-                    // Stencil recolour: paints `color` everywhere the
-                    // composition already drew a non-transparent pixel,
-                    // leaving fully-transparent areas untouched.
-                    drawRect(color = color, blendMode = BlendMode.SrcAtop)
-                },
+        MonoLottieIcon(
+            rawRes = R.raw.alarm,
+            size   = size,
+            color  = color,
         )
     }
 }

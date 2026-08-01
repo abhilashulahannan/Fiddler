@@ -37,13 +37,8 @@ import kotlinx.coroutines.launch
  *   }
  *
  * ── Location-a wiring ─────────────────────────────────────────────────────────
- * [FootballPhs3Handler.LocationAIndicator] must be placed in the pill's left
- * zone composable (location a), the same slot used by AlbumArtSpinner for music.
- *
- *   // Left zone
- *   if (activePhs3Handler is FootballPhs3Handler) {
- *       (activePhs3Handler as FootballPhs3Handler).LocationAIndicator()
- *   }
+ * [FootballPhs3Handler] opts in via hasLocationA = true / LocationAContent().
+ * overlay_fidland_pill wires it automatically — no manual cast needed.
  *
  *   // Right zone (location b)
  *   activePhs3Handler?.Indicator()

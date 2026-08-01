@@ -27,13 +27,9 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
-import com.airbnb.lottie.compose.LottieAnimation
-import com.airbnb.lottie.compose.LottieCompositionSpec
-import com.airbnb.lottie.compose.LottieConstants
-import com.airbnb.lottie.compose.animateLottieCompositionAsState
-import com.airbnb.lottie.compose.rememberLottieComposition
 import com.example.fiddler.R
 import com.example.fiddler.subapps.Fidland.phs3.Phs3Handler
+import com.example.fiddler.ui.icons.MonoLottieIcon
 
 /**
  * Phs3 module — Weather.
@@ -51,8 +47,10 @@ import com.example.fiddler.subapps.Fidland.phs3.Phs3Handler
  *     Line 2 (grey):         feels-like,            e.g. "feels 29°"
  *
  * ── State 5 (full-width strip, STATE5_HEIGHT tall) ───────────────────────────
- *   Row 1 — current detail bar:
- *     [icon temp]  [humidity icon + %]  [wind icon + speed/dir]  [feels like]
+ *   Row 1 — hero + stats:
+ *     Left:  large condition icon (colour-coded per [LottieIconColors], e.g.
+ *            amber sun, blue rain, purple storm) + big current temperature.
+ *     Right: feels-like / humidity / wind stacked as small icon+label rows.
  *   Row 2 — hourly forecast strip:
  *     Next 5 hours, each showing hour label + condition icon + temperature.
  *   Row 3 — sarcastic pun:
@@ -136,24 +134,37 @@ class WeatherPhs3Handler : Phs3Handler {
 
             val snap = snapshot!!
 
-            // ── Row 1: current detail bar ─────────────────────────────────
+            // ── Row 1: hero icon + temp (left), stacked stats (right) ──────
             Row(
                 modifier              = Modifier.fillMaxWidth(),
                 horizontalArrangement = Arrangement.SpaceBetween,
                 verticalAlignment     = Alignment.CenterVertically,
             ) {
-                // Condition + temp
-                DetailChip(
-                    iconRes = snap.condition.toRawRes(),
-                    label   = "${snap.tempC}°",
-                    bold    = true,
-                )
-                // Feels-like
-                DetailChip(label = "feels ${snap.feelsLikeC}°")
-                // Humidity
-                DetailChip(iconRes = R.raw.weather_humid, label = "${snap.humidityPct}%")
-                // Wind
-                DetailChip(iconRes = R.raw.weather_wind, label = "${snap.windSpeedKmh} ${snap.windDir}")
+                // Hero — large colour-coded condition icon + big temperature.
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    MonoLottieIcon(
+                        rawRes = snap.condition.toRawRes(),
+                        size   = 38.dp,
+                    )
+                    Spacer(modifier = Modifier.width(8.dp))
+                    Text(
+                        text       = "${snap.tempC}°",
+                        color      = Color.White,
+                        fontSize   = 26.sp,
+                        fontWeight = FontWeight.Bold,
+                        maxLines   = 1,
+                    )
+                }
+
+                // Stats — feels-like, humidity, wind stacked to the right.
+                Column(
+                    horizontalAlignment  = Alignment.End,
+                    verticalArrangement  = Arrangement.spacedBy(3.dp),
+                ) {
+                    DetailChip(iconRes = R.raw.weather_temp, label = "feels ${snap.feelsLikeC}°")
+                    DetailChip(iconRes = R.raw.weather_humid, label = "${snap.humidityPct}%")
+                    DetailChip(iconRes = R.raw.weather_wind, label = "${snap.windSpeedKmh} ${snap.windDir}")
+                }
             }
 
             // ── Row 2: hourly forecast strip ──────────────────────────────
@@ -199,18 +210,9 @@ class WeatherPhs3Handler : Phs3Handler {
  */
 @Composable
 private fun WeatherIcon(condition: WeatherCondition?, size: Dp) {
-    val composition by rememberLottieComposition(
-        LottieCompositionSpec.RawRes(condition?.toRawRes() ?: R.raw.weather_temp)
-    )
-    val progress by animateLottieCompositionAsState(
-        composition = composition,
-        iterations  = LottieConstants.IterateForever,
-        isPlaying   = true,
-    )
-    LottieAnimation(
-        composition = composition,
-        progress    = { progress },
-        modifier    = Modifier.size(size),
+    MonoLottieIcon(
+        rawRes = condition?.toRawRes() ?: R.raw.weather_temp,
+        size   = size,
     )
 }
 
@@ -224,17 +226,7 @@ private fun WeatherIcon(condition: WeatherCondition?, size: Dp) {
 private fun DetailChip(label: String, bold: Boolean = false, iconRes: Int? = null) {
     Row(verticalAlignment = Alignment.CenterVertically) {
         if (iconRes != null) {
-            val composition by rememberLottieComposition(LottieCompositionSpec.RawRes(iconRes))
-            val progress by animateLottieCompositionAsState(
-                composition = composition,
-                iterations  = LottieConstants.IterateForever,
-                isPlaying   = true,
-            )
-            LottieAnimation(
-                composition = composition,
-                progress    = { progress },
-                modifier    = Modifier.size(12.dp),
-            )
+            MonoLottieIcon(rawRes = iconRes, size = 12.dp)
             Spacer(modifier = Modifier.width(2.dp))
         }
         Text(

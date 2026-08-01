@@ -132,6 +132,9 @@ class PermissionsActivity : ComponentActivity() {
             // Without this, generation reads UNKNOWN on many OEM builds — see
             // CellularCommsSource kdoc for the per-vendor inconsistency.
             Manifest.permission.READ_PHONE_STATE,
+            // Needed by the Call module's phs5 recent-messages strip to pull
+            // the last SMS/RCS message(s) from the caller — see call.kt.
+            Manifest.permission.READ_SMS,
         )
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
             list += listOf(
@@ -171,6 +174,8 @@ class PermissionsActivity : ComponentActivity() {
                         "Microphone denied — audio recording will be unavailable."
                     Manifest.permission.READ_PHONE_STATE ->
                         "Phone state denied — cellular generation (4G/5G) won't be shown, signal bars still will."
+                    Manifest.permission.READ_SMS ->
+                        "SMS denied — the in-call recent-messages strip won't be shown."
                     Manifest.permission.BLUETOOTH_CONNECT,
                     Manifest.permission.BLUETOOTH_SCAN,
                     Manifest.permission.BLUETOOTH_ADVERTISE ->

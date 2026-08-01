@@ -77,7 +77,7 @@ class OverlayManagerCompose(
     // (e.g. NavigationPhs3Handler's upcoming-turns list) and steals its
     // scroll drags. This places it OUTSIDE the OS-controlled status bar zone.
     // X anchored same as island view so it stays visually centered.
-    private fun touchBoxParams(phase: PillPhase = PillPhase.CIRCLE) = WindowManager.LayoutParams(
+    private fun touchBoxParams(phase: PillPhase = PillPhase.CIRCLE, heightOverride: Dp? = null) = WindowManager.LayoutParams(
         IslandConfig.STATE2_WIDTH.dpToPx(),   // wide enough for the pill in any pill state
         IslandConfig.TOUCH_BOX_HEIGHT_DP.dpToPx(),
         overlayType(),
@@ -91,7 +91,7 @@ class OverlayManagerCompose(
         // Center the touch box horizontally over the hole-punch
         x = screenWidthPx() / 2 - IslandConfig.STATE2_WIDTH.dpToPx() / 2
         // Position: below the island's lower edge for the given phase.
-        y = islandTopY() + IslandConfig.heightForPhase(phase).dpToPx() + (4 * context.resources.displayMetrics.density).toInt()
+        y = islandTopY() + (heightOverride ?: IslandConfig.heightForPhase(phase)).dpToPx() + (4 * context.resources.displayMetrics.density).toInt()
     }
 
     // ── Public API ────────────────────────────────────────────────────────
@@ -102,10 +102,10 @@ class OverlayManagerCompose(
         windowManager.addView(view, islandParams())
     }
 
-    fun addTouchBoxView(view: ComposeView, phase: PillPhase = PillPhase.CIRCLE) {
+    fun addTouchBoxView(view: ComposeView, phase: PillPhase = PillPhase.CIRCLE, heightOverride: Dp? = null) {
         if (view.isAttachedToWindow) return
         touchBoxView = view
-        windowManager.addView(view, touchBoxParams(phase))
+        windowManager.addView(view, touchBoxParams(phase, heightOverride))
     }
 
     /**
@@ -115,10 +115,10 @@ class OverlayManagerCompose(
      * DASHBOARD) so the touch box tracks the pill as it grows/shrinks and
      * never overlaps scrollable State 5 content above it.
      */
-    fun repositionTouchBoxForPhase(phase: PillPhase) {
+    fun repositionTouchBoxForPhase(phase: PillPhase, heightOverride: Dp? = null) {
         val view = touchBoxView ?: return
         if (!view.isAttachedToWindow) return
-        windowManager.updateViewLayout(view, touchBoxParams(phase))
+        windowManager.updateViewLayout(view, touchBoxParams(phase, heightOverride))
     }
 
     fun removeTouchBoxView() {

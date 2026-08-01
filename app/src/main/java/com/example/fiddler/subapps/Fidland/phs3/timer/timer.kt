@@ -33,24 +33,19 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
-import com.airbnb.lottie.compose.LottieAnimation
-import com.airbnb.lottie.compose.LottieCompositionSpec
-import com.airbnb.lottie.compose.LottieConstants
-import com.airbnb.lottie.compose.animateLottieCompositionAsState
-import com.airbnb.lottie.compose.rememberLottieComposition
 import com.example.fiddler.R
 import com.example.fiddler.subapps.Fidland.phs3.Phs3Handler
+import com.example.fiddler.ui.icons.MonoLottieIcon
 
 /**
  * Phs3 module — Timer / Stopwatch (Clock app).
  *
  * ── Location a (left of hole-punch) ──────────────────────────────────────────
  *   Mode icon — looping Lottie asset (res/raw/timer_countdown_stopwatch.json),
- *   shared by both TIMER and STOPWATCH since there's one combined asset. Call
- *   [LocationAIndicator] from the pill's left-zone composable (same pattern
- *   as AlbumArtSpinner for music / NavigationPhs3Handler.LocationAIndicator).
- *   Shifts to sit left of NetSpeedDisplay automatically when netspeed is on,
- *   same as the other left-zone modules.
+ *   shared by both TIMER and STOPWATCH since there's one combined asset. Opt-in
+ *   via [hasLocationA] / [LocationAContent] — wired automatically by
+ *   overlay_fidland_pill. Shifts to sit left of NetSpeedDisplay automatically
+ *   when netspeed is on, same as the other left-zone modules.
  *
  * ── Location b (immediate right of hole-punch) ────────────────────────────────
  *   The live time text — remaining time if TIMER, elapsed time if STOPWATCH.
@@ -71,10 +66,7 @@ import com.example.fiddler.subapps.Fidland.phs3.Phs3Handler
  *    (see TimerPhs3trigger.kt).
  * 2. Feed [TimerRepository] from the Clock app's timer/stopwatch
  *    notifications (see TimerRepository kdoc for the sketch).
- * 3. In the pill left-zone composable:
- *      if (activePhs3Handler is TimerPhs3Handler) {
- *          (activePhs3Handler as TimerPhs3Handler).LocationAIndicator()
- *      }
+ * Location-a is wired automatically via [hasLocationA] / [LocationAContent].
  */
 class TimerPhs3Handler(
     private val onPauseResume: () -> Unit = {},
@@ -86,8 +78,10 @@ class TimerPhs3Handler(
 
     // ── Location a — mode glyph ───────────────────────────────────────────────
 
+    override val hasLocationA: Boolean = true
+
     @Composable
-    fun LocationAIndicator() {
+    override fun LocationAContent() {
         val snapshot by TimerRepository.flow.collectAsState()
         if (!snapshot.isActive) return
 
@@ -309,17 +303,7 @@ private fun PanelButton(text: String, modifier: Modifier = Modifier, onClick: ()
  */
 @Composable
 private fun TimerModeIcon(sizeDp: Dp) {
-    val composition by rememberLottieComposition(LottieCompositionSpec.RawRes(R.raw.timer_countdown_stopwatch))
-    val progress by animateLottieCompositionAsState(
-        composition = composition,
-        iterations  = LottieConstants.IterateForever,
-        isPlaying   = true,
-    )
-    LottieAnimation(
-        composition = composition,
-        progress    = { progress },
-        modifier    = Modifier.size(sizeDp),
-    )
+    MonoLottieIcon(rawRes = R.raw.timer_countdown_stopwatch, size = sizeDp)
 }
 
 // ─────────────────────────────────────────────────────────────────────────────

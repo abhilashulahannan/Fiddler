@@ -137,7 +137,7 @@ object IslandConfig {
     //     ~80 dp  →  two-line strip (e.g. lyrics line + artist name)
     //     ~100 dp →  compact controls row (album art + track title + play/pause)
     //   Keep well below STATE4_HEIGHT so the two states feel distinct.
-    val STATE5_HEIGHT: Dp = 100.dp
+    val STATE5_HEIGHT: Dp = 115.dp
 
     // ── 9. Vertical positioning ─────────────────────────────────────────────
     //   The island's center should align with the hole-punch camera center.

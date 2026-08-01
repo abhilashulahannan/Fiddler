@@ -37,6 +37,18 @@ data class MissedCallInfo(
     val entries: List<MissedCallEntry> = emptyList()
 )
 
+/**
+ * Accurate post-call duration for an outgoing call, corrected from
+ * CallLog.Calls.DURATION once the call ends — see CallPhs3Trigger's
+ * correctOutgoingCallDuration() for how it's computed and why it's only
+ * needed for outgoing calls.
+ */
+data class CallDurationCorrection(
+    val phoneNumber: String,
+    val estimatedDurationMs: Long,
+    val actualDurationMs: Long,
+)
+
 enum class CallDirection { INCOMING, OUTGOING }
 enum class CallConnectionState { RINGING, ACTIVE, ON_HOLD }
 

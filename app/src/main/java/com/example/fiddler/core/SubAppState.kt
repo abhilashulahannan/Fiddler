@@ -10,7 +10,7 @@ import com.example.fiddler.subapps.Fidland.service.FidlandService
 
 // Shared state for sub-apps enable/disable
 object SubAppState {
-    val ntspdEnabled = mutableStateOf(true)
+    val ntspdEnabled = mutableStateOf(false)
     val rngtnsEnabled = mutableStateOf(true)
     val fidlandEnabled = mutableStateOf(false)
     val secgrpEnabled = mutableStateOf(false)

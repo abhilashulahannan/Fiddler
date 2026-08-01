@@ -3,7 +3,6 @@ package com.example.fiddler.subapps.Fidland.phs3.ringmode
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
-import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
@@ -11,9 +10,7 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
-import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
-import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
@@ -26,12 +23,9 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
-import com.airbnb.lottie.compose.LottieAnimation
-import com.airbnb.lottie.compose.LottieCompositionSpec
-import com.airbnb.lottie.compose.LottieConstants
-import com.airbnb.lottie.compose.animateLottieCompositionAsState
-import com.airbnb.lottie.compose.rememberLottieComposition
 import com.example.fiddler.subapps.Fidland.phs3.Phs3Handler
+import com.example.fiddler.ui.icons.LottieIconColors
+import com.example.fiddler.ui.icons.MonoLottieIcon
 
 /**
  * Phs3 module — Ring Mode.
@@ -62,6 +56,12 @@ class VolumePhs3Handler(
 ) : Phs3Handler {
 
     override val label: String = "Volume"
+
+    // Header row + divider + switcher row (now with 30.dp icons) need a bit
+    // more vertical room than the shared IslandConfig.STATE5_HEIGHT default,
+    // and the DND detail row needs even more when it's showing.
+    override val state5HeightOverride: Dp =
+        if (snapshot.mode == RingMode.DND) 160.dp else 128.dp
 
     // ── Indicator ──────────────────────────────────────────────────────────────
 
@@ -115,16 +115,14 @@ class VolumePhs3Handler(
                 horizontalArrangement = Arrangement.spacedBy(10.dp),
                 modifier = Modifier.fillMaxWidth(),
             ) {
-                // Mode icon in a tinted circle
-                Box(
-                    modifier = Modifier
-                        .size(36.dp)
-                        .clip(CircleShape)
-                        .background(modeCircleColor(snapshot.mode)),
-                    contentAlignment = Alignment.Center,
-                ) {
-                    RingModeIcon(mode = snapshot.mode, size = 18.dp)
-                }
+                // Mode icon — no background plate. Monochrome glyph tinted with
+                // the mode's accent colour so it reads clearly against the
+                // pill's black backdrop on its own.
+                RingModeIcon(
+                    mode = snapshot.mode,
+                    size = 26.dp,
+                    color = modeAccentColor(snapshot.mode),
+                )
 
                 Column(modifier = Modifier.weight(1f)) {
                     Text(
@@ -147,8 +145,6 @@ class VolumePhs3Handler(
                 }
             }
 
-            // ── Divider ──────────────────────────────────────────────────────────
-            RingmodeDivider()
 
             // ── Mode switcher row ────────────────────────────────────────────────
             Row(
@@ -168,7 +164,6 @@ class VolumePhs3Handler(
             // ── DND detail ───────────────────────────────────────────────────────
             // Only shown when DND is active — surfaces which policy is in effect.
             if (snapshot.mode == RingMode.DND) {
-                RingmodeDivider()
 
                 DndPolicyRow(policy = snapshot.dndPolicy)
             }
@@ -180,20 +175,16 @@ class VolumePhs3Handler(
 
 /** Shared mode icon — plays the matching ring_*.json Lottie asset on loop. */
 @Composable
-private fun RingModeIcon(mode: RingMode, size: Dp) {
-    val composition by rememberLottieComposition(
-        LottieCompositionSpec.RawRes(mode.rawRes)
-    )
-    val progress by animateLottieCompositionAsState(
-        composition = composition,
-        iterations  = LottieConstants.IterateForever,
-        isPlaying   = true,
-    )
-    LottieAnimation(
-        composition = composition,
-        progress    = { progress },
-        modifier    = Modifier.size(size),
-    )
+private fun RingModeIcon(mode: RingMode, size: Dp, color: Color? = null) {
+    // Colour comes from LottieIconColors.ringRing/ringVibrate/ringSilent/
+    // ringDnd via the rawRes lookup by default — matches modeAccentColor
+    // below by design. Pass [color] to override (e.g. dim it for an
+    // inactive switcher button).
+    if (color != null) {
+        MonoLottieIcon(rawRes = mode.rawRes, size = size, color = color)
+    } else {
+        MonoLottieIcon(rawRes = mode.rawRes, size = size)
+    }
 }
 
 // ── Mode switcher button ──────────────────────────────────────────────────────
@@ -205,23 +196,25 @@ private fun ModeSwitchButton(
     onClick: () -> Unit,
     modifier: Modifier = Modifier,
 ) {
-    val bgColor = if (isActive) modeCircleColor(mode) else Color(0xFF1A1A1A)
+    // No background plate — the monochrome icon itself is the tappable
+    // target. Active/inactive reads purely through tint: full accent colour
+    // when selected, dimmed grey otherwise. Sits directly on the pill's
+    // black backdrop, which is exactly where these glyphs contrast best.
+    val tint = if (isActive) modeAccentColor(mode) else Color(0xFF555555)
     val labelColor = if (isActive) modeAccentColor(mode) else Color(0xFF666666)
 
     Column(
         horizontalAlignment = Alignment.CenterHorizontally,
-        verticalArrangement = Arrangement.spacedBy(5.dp),
+        verticalArrangement = Arrangement.spacedBy(6.dp),
         modifier = modifier
-            .clip(RoundedCornerShape(10.dp))
-            .background(bgColor)
             .clickable(onClick = onClick)
             .padding(vertical = 10.dp),
     ) {
-        RingModeIcon(mode = mode, size = 20.dp)
+        RingModeIcon(mode = mode, size = 30.dp, color = tint)
         Text(
             text = mode.displayName,
             color = labelColor,
-            fontSize = 9.sp,
+            fontSize = 10.sp,
             fontWeight = if (isActive) FontWeight.SemiBold else FontWeight.Normal,
         )
     }
@@ -259,29 +252,20 @@ private fun DndPolicyRow(policy: DndPolicy) {
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
 
-/** Background circle tint behind the mode icon. */
-private fun modeCircleColor(mode: RingMode): Color = when (mode) {
-    RingMode.RING    -> Color(0xFF1A2A1A)   // dim green
-    RingMode.VIBRATE -> Color(0xFF1A1A2A)   // dim blue
-    RingMode.SILENT  -> Color(0xFF2A1A1A)   // dim red
-    RingMode.DND     -> Color(0xFF1E1A2A)   // dim purple
-}
-
-/** Accent / label colour for active mode buttons. */
+/**
+ * Accent / label colour for active mode buttons — same values as each
+ * mode's icon tint, so both move together if you tweak
+ * [LottieIconColors].
+ */
 private fun modeAccentColor(mode: RingMode): Color = when (mode) {
-    RingMode.RING    -> Color(0xFF4ADE80)   // green
-    RingMode.VIBRATE -> Color(0xFF60A5FA)   // blue
-    RingMode.SILENT  -> Color(0xFFFC5C5C)   // red
-    RingMode.DND     -> Color(0xFFA78BFA)   // purple
+    RingMode.RING    -> LottieIconColors.ringRing
+    RingMode.VIBRATE -> LottieIconColors.ringVibrate
+    RingMode.SILENT  -> LottieIconColors.ringSilent
+    RingMode.DND     -> LottieIconColors.ringDnd
 }
 
-/** Text colour for the Indicator label. */
-private fun indicatorTextColor(mode: RingMode): Color = when (mode) {
-    RingMode.RING    -> Color(0xFF4ADE80)
-    RingMode.VIBRATE -> Color(0xFF60A5FA)
-    RingMode.SILENT  -> Color(0xFFFC5C5C)
-    RingMode.DND     -> Color(0xFFA78BFA)
-}
+/** Text colour for the Indicator label — mirrors [modeAccentColor]. */
+private fun indicatorTextColor(mode: RingMode): Color = modeAccentColor(mode)
 
 /** Human-readable ringer volume, e.g. "Volume · 5 / 7". */
 private fun ringerVolumeLabel(snapshot: RingmodeSnapshot): String =

@@ -57,7 +57,8 @@ import kotlinx.coroutines.delay
  * ── Location a (left of hole-punch) ──────────────────────────────────────────
  *   Flashes a [FootballEventIcon] for [FLASH_DURATION_MS] (30 s) when a goal,
  *   yellow card, or red card is detected in the most-recently-focused match.
- *   Then goes blank. No icon = no recent event.
+ *   Then goes blank. No icon = no recent event. Opt-in via [hasLocationA] /
+ *   [LocationAContent] — wired automatically by overlay_fidland_pill.
  *
  * ── Location b (immediate right of hole-punch) ────────────────────────────────
  *   [HomeLogoIcon]  homeScore : awayScore  [AwayLogoIcon]
@@ -86,6 +87,8 @@ class FootballPhs3Handler(
     //  Location a — event flash icon
     // ─────────────────────────────────────────────────────────────────────────
 
+    override val hasLocationA: Boolean = true
+
     /**
      * Shown in the LEFT ZONE (location a).
      *
@@ -93,7 +96,7 @@ class FootballPhs3Handler(
      * exactly [FLASH_DURATION_MS] milliseconds, then hides it.
      */
     @Composable
-    fun LocationAIndicator() {
+    override fun LocationAContent() {
         val flashEvent by repo.flashEventFlow.collectAsState()
         var visibleEvent by remember { mutableStateOf<FlashEvent?>(null) }
 

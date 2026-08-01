@@ -30,13 +30,9 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
-import com.airbnb.lottie.compose.LottieAnimation
-import com.airbnb.lottie.compose.LottieCompositionSpec
-import com.airbnb.lottie.compose.LottieConstants
-import com.airbnb.lottie.compose.animateLottieCompositionAsState
-import com.airbnb.lottie.compose.rememberLottieComposition
 import com.example.fiddler.R
 import com.example.fiddler.subapps.Fidland.phs3.Phs3Handler
+import com.example.fiddler.ui.icons.MonoLottieIcon
 import kotlinx.coroutines.delay
 
 /**
@@ -180,19 +176,7 @@ private val CALENDAR_ICON_TEXT_GAP: Dp = 6.dp
 /** Looping `callender.json` glyph shown in the Indicator's new icon slot. */
 @Composable
 private fun CalendarIcon(size: Dp) {
-    val composition by rememberLottieComposition(
-        LottieCompositionSpec.RawRes(R.raw.callender)
-    )
-    val progress by animateLottieCompositionAsState(
-        composition = composition,
-        iterations  = LottieConstants.IterateForever,
-        isPlaying   = true,
-    )
-    LottieAnimation(
-        composition = composition,
-        progress    = { progress },
-        modifier    = Modifier.size(size),
-    )
+    MonoLottieIcon(rawRes = R.raw.callender, size = size)
 }
 
 /** A single State 5 event row: colour dot, title, time range, location. */

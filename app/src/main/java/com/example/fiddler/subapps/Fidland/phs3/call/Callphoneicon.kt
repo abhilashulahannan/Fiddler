@@ -1,18 +1,12 @@
 package com.example.fiddler.subapps.Fidland.phs3.call
 
-import androidx.compose.foundation.layout.Box
-import androidx.compose.foundation.layout.size
 import androidx.compose.runtime.Composable
-import androidx.compose.runtime.getValue
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.scale
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
-import com.airbnb.lottie.compose.LottieAnimation
-import com.airbnb.lottie.compose.LottieCompositionSpec
-import com.airbnb.lottie.compose.LottieConstants
-import com.airbnb.lottie.compose.animateLottieCompositionAsState
-import com.airbnb.lottie.compose.rememberLottieComposition
 import com.example.fiddler.R
+import com.example.fiddler.ui.icons.MonoLottieIcon
 
 /**
  * Phs3 Call — Location A: phone-handset icon.
@@ -36,21 +30,20 @@ fun CallPhoneIcon(
     size: Dp = 16.dp
 ) {
     val rawRes = if (missed) R.raw.call_missed else R.raw.call_call
-
-    val composition by rememberLottieComposition(
-        LottieCompositionSpec.RawRes(rawRes)
+    // Colour comes from LottieIconColors.callMissed/callActive via the
+    // rawRes lookup — no override needed here.
+    //
+    // Unlike every other Phs3 glyph, call_call.json / call_missed.json have
+    // real content padding baked into their 2000×2000 canvas — the phone
+    // glyph only occupies the top-left ~55–74%, empty space bottom-right.
+    // FillBounds in MonoLottieIcon fills the *slot*, but can't un-bake that
+    // empty space from the asset itself, so we additionally scale the whole
+    // composition up within its own bounds to cancel it out. 1.4x is
+    // empirical (measured padding was ~24% per side); re-tune if the source
+    // Lottie files are ever re-exported with the glyph centered/cropped.
+    MonoLottieIcon(
+        rawRes   = rawRes,
+        size     = size,
+        modifier = Modifier.scale(1.4f),
     )
-    val progress by animateLottieCompositionAsState(
-        composition = composition,
-        iterations  = LottieConstants.IterateForever,
-        isPlaying   = true,
-    )
-
-    Box(modifier = Modifier.size(size)) {
-        LottieAnimation(
-            composition = composition,
-            progress    = { progress },
-            modifier    = Modifier.size(size),
-        )
-    }
 }

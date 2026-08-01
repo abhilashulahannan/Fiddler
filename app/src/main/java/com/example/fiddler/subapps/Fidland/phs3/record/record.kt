@@ -29,15 +29,14 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
-import com.airbnb.lottie.compose.LottieAnimation
 import com.airbnb.lottie.compose.LottieCompositionSpec
-import com.airbnb.lottie.compose.LottieConstants
-import com.airbnb.lottie.compose.rememberLottieComposition
 import com.example.fiddler.subapps.Fidland.phs3.Phs3Handler
 import com.example.fiddler.subapps.Fidland.phs3.shared.AudioVisualizerEngine
 import com.example.fiddler.subapps.Fidland.phs3.shared.EqualizerContext
 import com.example.fiddler.subapps.Fidland.phs3.shared.EqualizerIndicator
 import com.example.fiddler.subapps.Fidland.phs3.shared.EqualizerMode
+import com.example.fiddler.ui.icons.LottieIconColors
+import com.example.fiddler.ui.icons.MonoLottieIcon
 
 /**
  * Phs3 module — Phone Recorder Observer.
@@ -85,21 +84,25 @@ class RecordPhs3Handler(
 
     // ── Location a — Lottie pulse ─────────────────────────────────────────────
 
+    override val hasLocationA: Boolean = true
+
     @Composable
-    fun LocationAIndicator() {
+    override fun LocationAContent() {
         val snapshot by source.flow.collectAsState()
         if (!snapshot.isActive) return
 
-        val composition by rememberLottieComposition(
-            LottieCompositionSpec.Asset("lottie/recording_pulse.json")
-        )
         val speed = if (snapshot.state == RecordingState.PAUSED) 0.3f else 1f
+        val color = if (snapshot.state == RecordingState.PAUSED)
+            LottieIconColors.recordingPaused else LottieIconColors.recordingActive
 
-        LottieAnimation(
-            composition = composition,
-            iterations  = LottieConstants.IterateForever,
-            speed       = speed,
-            modifier    = Modifier.size(20.dp),
+        // Not a res/raw asset — lives in assets/lottie — so this uses the
+        // `spec` overload and passes color explicitly (no rawRes to look
+        // one up by).
+        MonoLottieIcon(
+            spec  = LottieCompositionSpec.Asset("lottie/recording_pulse.json"),
+            color = color,
+            size  = 20.dp,
+            speed = speed,
         )
     }
 

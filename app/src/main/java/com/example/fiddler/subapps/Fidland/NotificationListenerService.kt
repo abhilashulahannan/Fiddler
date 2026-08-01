@@ -13,6 +13,7 @@ import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import com.example.fiddler.subapps.Fidland.phs3.record.RecorderNotificationSource
 import com.example.fiddler.subapps.Fidland.phs3.timer.TimerNotificationSource
+import com.example.fiddler.subapps.Fidland.phs3.call.WhatsAppNotificationSource
 
 /**
  * Two responsibilities:
@@ -52,6 +53,9 @@ class NotificationListenerService : NotificationListenerService() {
 
         var timerNotificationSource: TimerNotificationSource? = null
 
+        /** Feeds phs5's recent-messages strip — see RecentMessages.kt. */
+        var whatsAppSource: WhatsAppNotificationSource? = null
+
     }
 
     override fun onListenerConnected() {
@@ -64,6 +68,7 @@ class NotificationListenerService : NotificationListenerService() {
         timerNotificationSource?.onNotificationPosted(sbn)  // ← add this line
         downloadSource?.onNotificationPosted(sbn)
         recorderSource?.onNotificationPosted(sbn)
+        whatsAppSource?.onNotificationPosted(sbn)
 
         if (sbn.packageName in MUSIC_PACKAGES) return
         if (sbn.isOngoing) return
@@ -75,6 +80,7 @@ class NotificationListenerService : NotificationListenerService() {
         timerNotificationSource?.onNotificationRemoved(sbn) // ← add this line
         downloadSource?.onNotificationRemoved(sbn)
         recorderSource?.onNotificationRemoved(sbn)
+        whatsAppSource?.onNotificationRemoved(sbn)
         refreshNotifications()
     }
 
