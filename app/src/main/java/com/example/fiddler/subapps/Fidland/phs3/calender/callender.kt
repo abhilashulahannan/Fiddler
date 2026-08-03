@@ -5,15 +5,23 @@ import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.IntrinsicSize
 import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
-import androidx.compose.foundation.shape.CircleShape
+import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.CalendarMonth
+import androidx.compose.material.icons.filled.LocationOn
+import androidx.compose.material3.Icon
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
@@ -49,11 +57,18 @@ import kotlinx.coroutines.delay
  *   to the next event once the current one ends, and refreshes the
  *   relative-time subtitle every 30s.
  *
- * ControlsPanel (State 5):
- *   Scrollable, sectioned list — Today / Tomorrow / Upcoming this week
- *   (see [groupEventsForState5]). Each row shows a colour dot, title, time
- *   range (or "All day"), and location if present. Empty sections are
- *   omitted; an empty overall list shows a "No upcoming events" placeholder.
+ * State 5 (redesigned):
+ *   Two-tier layout instead of a flat list:
+ *     1. A pinned "Next up" hero card ([NextUpHero]) for the soonest
+ *        ongoing/upcoming event — bigger title, colour-tinted countdown
+ *        pill, location row with icon.
+ *     2. A scrollable, sectioned list of everything else — Today /
+ *        Tomorrow / Upcoming this week (see [groupEventsForState5]),
+ *        rendered as rounded cards with a coloured accent bar instead of
+ *        the old plain dot-row, styled section headers (small caps label
+ *        + accent rule), and an icon-based empty state.
+ *   The hero event is excluded from its section in the list below so it
+ *   isn't shown twice.
  *
  * @param events List of upcoming events (today through next 7 days). The
  *                hosting trigger should refresh this periodically from
@@ -120,40 +135,46 @@ class CalendarPhs3Handler(
 
     @Composable
     override fun State5Content() {
-        val groups = remember(events) { groupEventsForState5(events) }
-
-        if (groups.isEmpty()) {
-            Box(
-                modifier = Modifier.fillMaxSize(),
-                contentAlignment = Alignment.Center
-            ) {
-                Text(
-                    text = "No upcoming events",
-                    color = Color(0xFF888888),
-                    fontSize = 13.sp
-                )
+        var nowMs by remember { mutableLongStateOf(System.currentTimeMillis()) }
+        LaunchedEffect(Unit) {
+            while (true) {
+                nowMs = System.currentTimeMillis()
+                delay(30_000L)
             }
+        }
+
+        val hero = remember(events, nowMs) { nextIndicatorEvent(events, nowMs) }
+        val groups = remember(events, hero) {
+            groupEventsForState5(events)
+                .map { group -> group.copy(events = group.events.filter { it !== hero }) }
+                .filter { it.events.isNotEmpty() }
+        }
+
+        if (hero == null && groups.isEmpty()) {
+            EmptyState()
             return
         }
 
-        LazyColumn(
-            modifier = Modifier.fillMaxSize(),
-            contentPadding = PaddingValuesAll(top = 8.dp, bottom = 12.dp)
-        ) {
-            groups.forEach { group ->
-                item {
-                    Text(
-                        text = group.section.title,
-                        color = Color(0xFF666666),
-                        fontSize = 11.sp,
-                        fontWeight = FontWeight.Medium,
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .padding(horizontal = 16.dp, vertical = 6.dp)
-                    )
-                }
-                items(group.events) { event ->
-                    CalendarEventRow(event)
+        Column(modifier = Modifier.fillMaxSize()) {
+            hero?.let {
+                NextUpHero(event = it, nowMs = nowMs)
+                Spacer(modifier = Modifier.height(6.dp))
+            }
+
+            if (groups.isEmpty()) return@Column
+
+            LazyColumn(
+                modifier = Modifier.fillMaxSize(),
+                contentPadding = PaddingValuesAll(bottom = 12.dp)
+            ) {
+                groups.forEach { group ->
+                    item {
+                        SectionHeader(title = group.section.title)
+                    }
+                    val showDate = group.section == CalendarSection.THIS_WEEK
+                    items(group.events) { event ->
+                        EventCard(event, showDate = showDate)
+                    }
                 }
             }
         }
@@ -179,27 +200,157 @@ private fun CalendarIcon(size: Dp) {
     MonoLottieIcon(rawRes = R.raw.callender, size = size)
 }
 
-/** A single State 5 event row: colour dot, title, time range, location. */
+/** Resolves an event's accent colour, falling back to a neutral indigo. */
+private fun CalendarEvent.accentColor(): Color =
+    colorHex?.let { hex -> runCatching { Color(android.graphics.Color.parseColor(hex)) }.getOrNull() }
+        ?: Color(0xFF7C8CFF)
+
+// ── State 5: Next-up hero card ──────────────────────────────────────────
+// Pinned above the list — the one thing worth glancing at without
+// scrolling. Bigger type, a colour-tinted countdown pill instead of plain
+// grey subtitle text, and a location row when present.
 @Composable
-private fun CalendarEventRow(event: CalendarEvent) {
-    val dotColor = event.colorHex?.let { hex ->
-        runCatching { Color(android.graphics.Color.parseColor(hex)) }.getOrNull()
-    } ?: Color(0xFF7C8CFF)
+private fun NextUpHero(event: CalendarEvent, nowMs: Long) {
+    val accent = event.accentColor()
 
     Row(
-        verticalAlignment = Alignment.CenterVertically,
-        horizontalArrangement = Arrangement.spacedBy(10.dp),
+        verticalAlignment = Alignment.Top,
         modifier = Modifier
             .fillMaxWidth()
+            .height(IntrinsicSize.Min)
+            .clip(RoundedCornerShape(12.dp))
+            .background(accent.copy(alpha = 0.14f))
             .clickable { /* TODO: open event details */ }
+            .padding(horizontal = 14.dp, vertical = 10.dp)
+    ) {
+        Box(
+            modifier = Modifier
+                .width(3.dp)
+                .fillMaxHeight()
+                .padding(vertical = 1.dp)
+                .clip(RoundedCornerShape(2.dp))
+                .background(accent)
+        )
+        Spacer(modifier = Modifier.width(10.dp))
+        Column(modifier = Modifier.weight(1f)) {
+            Text(
+                text = "NEXT UP",
+                color = accent,
+                fontSize = 9.sp,
+                fontWeight = FontWeight.Bold,
+                letterSpacing = 1.sp,
+            )
+            Spacer(modifier = Modifier.height(2.dp))
+            Text(
+                text = event.title.ifBlank { "Untitled event" },
+                color = Color.White,
+                fontSize = 15.sp,
+                fontWeight = FontWeight.SemiBold,
+                maxLines = 1,
+                overflow = TextOverflow.Ellipsis,
+            )
+            Spacer(modifier = Modifier.height(3.dp))
+            Text(
+                text = if (event.startsToday(nowMs)) event.timeRangeLabel() else event.dateTimeRangeLabel(),
+                color = Color(0xFFCCCCCC),
+                fontSize = 11.sp,
+                maxLines = 1,
+                overflow = TextOverflow.Ellipsis,
+            )
+            if (!event.location.isNullOrBlank()) {
+                Spacer(modifier = Modifier.height(2.dp))
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    Icon(
+                        imageVector = Icons.Filled.LocationOn,
+                        contentDescription = null,
+                        tint = Color(0xFF999999),
+                        modifier = Modifier.size(11.dp)
+                    )
+                    Spacer(modifier = Modifier.width(3.dp))
+                    Text(
+                        text = event.location,
+                        color = Color(0xFF999999),
+                        fontSize = 10.sp,
+                        maxLines = 1,
+                        overflow = TextOverflow.Ellipsis,
+                    )
+                }
+            }
+        }
+        Spacer(modifier = Modifier.width(8.dp))
+        Box(
+            modifier = Modifier
+                .clip(RoundedCornerShape(20.dp))
+                .background(accent.copy(alpha = 0.22f))
+                .padding(horizontal = 8.dp, vertical = 4.dp)
+        ) {
+            Text(
+                text = event.indicatorSubtitle(nowMs),
+                color = accent,
+                fontSize = 10.sp,
+                fontWeight = FontWeight.Bold,
+                maxLines = 1,
+            )
+        }
+    }
+}
+
+// ── State 5: section header ─────────────────────────────────────────────
+// Small-caps label with a short accent rule instead of the old plain grey
+// text — same idiom used for the "NEXT UP" hero eyebrow, so the list
+// reads as a continuation of the hero card rather than a separate block.
+@Composable
+private fun SectionHeader(title: String) {
+    Row(
+        verticalAlignment = Alignment.CenterVertically,
+        modifier = Modifier
+            .fillMaxWidth()
             .padding(horizontal = 16.dp, vertical = 8.dp)
     ) {
         Box(
             modifier = Modifier
-                .size(8.dp)
-                .clip(CircleShape)
-                .background(dotColor)
+                .width(10.dp)
+                .height(2.dp)
+                .clip(RoundedCornerShape(1.dp))
+                .background(Color(0xFF555555))
         )
+        Spacer(modifier = Modifier.width(6.dp))
+        Text(
+            text = title.uppercase(),
+            color = Color(0xFF777777),
+            fontSize = 10.sp,
+            fontWeight = FontWeight.Bold,
+            letterSpacing = 0.8.sp,
+        )
+    }
+}
+
+// ── State 5: event card ─────────────────────────────────────────────────
+// Replaces the old flat dot-row: rounded card, subtle background tint, and
+// a coloured accent bar down the left edge instead of a small dot — reads
+// as a card list rather than a plain text list.
+@Composable
+private fun EventCard(event: CalendarEvent, showDate: Boolean = false) {
+    val accent = event.accentColor()
+
+    Row(
+        verticalAlignment = Alignment.CenterVertically,
+        modifier = Modifier
+            .fillMaxWidth()
+            .padding(horizontal = 12.dp, vertical = 4.dp)
+            .clip(RoundedCornerShape(10.dp))
+            .background(Color.White.copy(alpha = 0.05f))
+            .clickable { /* TODO: open event details */ }
+            .padding(horizontal = 10.dp, vertical = 8.dp)
+    ) {
+        Box(
+            modifier = Modifier
+                .width(3.dp)
+                .height(28.dp)
+                .clip(RoundedCornerShape(2.dp))
+                .background(accent)
+        )
+        Spacer(modifier = Modifier.width(10.dp))
         Column(modifier = Modifier.weight(1f)) {
             Text(
                 text = event.title.ifBlank { "Untitled event" },
@@ -209,18 +360,62 @@ private fun CalendarEventRow(event: CalendarEvent) {
                 maxLines = 1,
                 overflow = TextOverflow.Ellipsis
             )
-            val sub = if (event.location.isNullOrBlank()) {
-                event.timeRangeLabel()
-            } else {
-                "${event.timeRangeLabel()} · ${event.location}"
+            Spacer(modifier = Modifier.height(2.dp))
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                Text(
+                    text = if (showDate) event.dateTimeRangeLabel() else event.timeRangeLabel(),
+                    color = Color(0xFF999999),
+                    fontSize = 10.sp,
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis,
+                )
+                if (!event.location.isNullOrBlank()) {
+                    Text(
+                        text = "  ·  ",
+                        color = Color(0xFF555555),
+                        fontSize = 10.sp,
+                    )
+                    Icon(
+                        imageVector = Icons.Filled.LocationOn,
+                        contentDescription = null,
+                        tint = Color(0xFF888888),
+                        modifier = Modifier.size(10.dp)
+                    )
+                    Spacer(modifier = Modifier.width(2.dp))
+                    Text(
+                        text = event.location,
+                        color = Color(0xFF999999),
+                        fontSize = 10.sp,
+                        maxLines = 1,
+                        overflow = TextOverflow.Ellipsis,
+                    )
+                }
             }
+        }
+    }
+}
+
+// ── State 5: empty state ────────────────────────────────────────────────
+// Icon + text instead of bare centred text, matching the visual weight of
+// the rest of the redesigned panel.
+@Composable
+private fun EmptyState() {
+    Box(
+        modifier = Modifier.fillMaxSize(),
+        contentAlignment = Alignment.Center
+    ) {
+        Column(horizontalAlignment = Alignment.CenterHorizontally) {
+            Icon(
+                imageVector = Icons.Filled.CalendarMonth,
+                contentDescription = null,
+                tint = Color(0xFF444444),
+                modifier = Modifier.size(22.dp)
+            )
+            Spacer(modifier = Modifier.height(6.dp))
             Text(
-                text = sub,
+                text = "No upcoming events",
                 color = Color(0xFF888888),
-                fontSize = 10.sp,
-                maxLines = 1,
-                overflow = TextOverflow.Ellipsis,
-                modifier = Modifier.padding(top = 1.dp)
+                fontSize = 13.sp
             )
         }
     }

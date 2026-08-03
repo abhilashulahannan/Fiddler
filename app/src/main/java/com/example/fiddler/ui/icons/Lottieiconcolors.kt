@@ -58,7 +58,7 @@ object LottieIconColors {
     val callender = white
 
     // ── Camera (privacy indicator) ───────────────────────────────────────
-    val camera = green
+    val camera = red
 
     // ── Comms ─────────────────────────────────────────────────────────────
     val commsBluetooth = white
@@ -123,6 +123,28 @@ object LottieIconColors {
     val weatherTemp         = white                 // hero fallback + "feels like" chip
     val weatherHumidity     = blue
     val weatherWind         = Color(0xFFCFCFCF)     // light neutral grey
+
+    // ── Quick Settings tiles ───────────────────────────────────────────────
+    // These drive the on/off tinting in QuickSettingsTopic.
+    // "On" state uses the named colour below; "off" state passes [grey]
+    // explicitly at the call site rather than looking up a separate entry —
+    // keeping the off-state consistent across all tiles without needing a
+    // paired _off val for each one.
+    //
+    // Wi-Fi and Bluetooth reuse the existing commsWifi*/commsBluetooth
+    // values above (same asset, same semantic colour) — no new entry needed.
+    // NFC likewise reuses commsNfc.
+    /** Mobile Data "on" tint — reuses comms4g/5g asset, cyan to read as
+     *  "data active" rather than just "cellular generation info". */
+    val quickSettingsMobileData = Color(0xFF22D3EE)   // cyan
+    /** Torch "on" tint — amber, matching the existing [flashlight] entry.
+     *  Extracted here as a named alias so QuickSettingsTopic can reference
+     *  it semantically without knowing the amber literal. */
+    val quickSettingsTorch      = amber
+    /** Dev Options "on" tint — purple signals "developer / advanced". */
+    val quickSettingsDevOptions = purple
+    /** Accessibility "on" tint — green signals "active / enabled". */
+    val quickSettingsAccessibility = green
 
     /** Maps every res/raw Lottie icon to its default colour above. */
     private val map: Map<Int, Color> by lazy {
@@ -202,6 +224,7 @@ object LottieIconColors {
     //   • AlarmClockIcon    — green/yellow/red urgency ramp (Alarmclockicon.kt)
     //   • FootballEventIcon — yellow vs red card (footballCardYellow/Red above)
     //   • RecordPhs3Handler — recordingActive/recordingPaused above
+    //   • QuickSettingsTopic — on/off tinting per tile (quickSettings* above)
     // This is intentional: those colours depend on runtime state, not just
     // "which icon is this", so they can't be a static map entry.
 }

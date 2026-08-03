@@ -20,7 +20,6 @@ import androidx.savedstate.setViewTreeSavedStateRegistryOwner
 import com.example.fiddler.subapps.Fidland.NotificationListenerService
 import com.example.fiddler.subapps.Fidland.apps.AppsTopic
 import com.example.fiddler.subapps.Fidland.manager.PlaylistTopicManager
-import com.example.fiddler.subapps.Fidland.manager.QuickSettingsManager
 import com.example.fiddler.subapps.Fidland.manager.SegmentSwitcher
 import com.example.fiddler.subapps.Fidland.music.MusicPhs3Trigger
 import com.example.fiddler.subapps.Fidland.music.MusicTopicCompose
@@ -29,7 +28,8 @@ import com.example.fiddler.subapps.Fidland.music.YTMusicListener
 import com.example.fiddler.subapps.Fidland.phs3.Phs3Handler
 import com.example.fiddler.subapps.Fidland.phs3.Phs3Manager
 import com.example.fiddler.subapps.Fidland.phs3.alarm.AlarmPhs3Trigger
-import com.example.fiddler.subapps.Fidland.phs3.battery.BatteryPhs3Trigger
+import com.example.fiddler.subapps.Fidland.phs3.calender.CalendarPhs3Trigger
+import com.example.fiddler.subapps.Fidland.phs3.camera.CameraPhs3Trigger
 import com.example.fiddler.subapps.Fidland.phs3.download.DownloadPhs3Trigger
 import com.example.fiddler.subapps.Fidland.phs3.flashlight.FlashlightPhs3Trigger
 import com.example.fiddler.subapps.Fidland.phs3.football.FootballPhs3Handler
@@ -72,7 +72,6 @@ class FidlandService : Service(), LifecycleOwner, SavedStateRegistryOwner {
 
     private val serviceScope = CoroutineScope(SupervisorJob() + Dispatchers.Main)
 
-    private lateinit var quickSettingsManager: QuickSettingsManager
     private lateinit var playlistManager: PlaylistTopicManager
     private lateinit var segmentSwitcher: SegmentSwitcher
 
@@ -85,7 +84,6 @@ class FidlandService : Service(), LifecycleOwner, SavedStateRegistryOwner {
     private lateinit var alarmTrigger: AlarmPhs3Trigger
     private lateinit var footballTrigger: FootballPhs3Trigger
     private lateinit var downloadTrigger: DownloadPhs3Trigger
-    private lateinit var batteryTrigger: BatteryPhs3Trigger
 
     // ── Recording ──────────────────────────────────────────────────────────────
     private lateinit var recorderSource: RecorderNotificationSource
@@ -98,7 +96,10 @@ class FidlandService : Service(), LifecycleOwner, SavedStateRegistryOwner {
 
     private lateinit var ringmodeTrigger: RingmodePhs3Trigger
 
+    private lateinit var cameraTrigger: CameraPhs3Trigger
+
     private lateinit var timerTrigger: TimerPhs3Trigger
+    private lateinit var calendarTrigger: CalendarPhs3Trigger
 
 
     val phs3Manager = Phs3Manager(serviceScope)
@@ -167,7 +168,6 @@ class FidlandService : Service(), LifecycleOwner, SavedStateRegistryOwner {
             .getSystemService(Context.WINDOW_SERVICE) as WindowManager
         prefs = getSharedPreferences("fidland_prefs", Context.MODE_PRIVATE)
 
-        quickSettingsManager = QuickSettingsManager(serviceScope)
         playlistManager      = PlaylistTopicManager(serviceScope)
         segmentSwitcher      = SegmentSwitcher(
             segmentCount     = 5,
@@ -195,6 +195,9 @@ class FidlandService : Service(), LifecycleOwner, SavedStateRegistryOwner {
         // ── Weather trigger ────────────────────────────────────────────────────────
         weatherTrigger = WeatherPhs3Trigger(applicationContext, serviceScope, this)
         weatherTrigger.start()
+
+        calendarTrigger = CalendarPhs3Trigger(applicationContext, serviceScope, this)
+        calendarTrigger.start()
 
         val footballEnabled  = prefs.getBoolean("football_enabled", false)
         val footballFdApiKey = prefs.getString("football_api_key", "") ?: ""
@@ -237,15 +240,15 @@ class FidlandService : Service(), LifecycleOwner, SavedStateRegistryOwner {
         ringmodeTrigger = RingmodePhs3Trigger(applicationContext, phs3Manager)
         ringmodeTrigger.start()
 
+        // ── Camera trigger ─────────────────────────────────────────────────────
+        // Always on, like ringmode/timer/weather/calendar below — registering
+        // CameraManager.AvailabilityCallback needs no CAMERA permission (see
+        // CameraPhs3Trigger's kdoc), so there's no pref gate to check.
+        cameraTrigger = CameraPhs3Trigger(applicationContext, this)
+        cameraTrigger.start()
+
         timerTrigger = TimerPhs3Trigger(serviceScope, phs3Manager)
         timerTrigger.start()
-
-        // ── Battery trigger ────────────────────────────────────────────────────
-        // No permission required (plain sticky broadcast, same tier as
-        // Ringmode), so — like Weather/Ringmode/Timer above — this starts
-        // unconditionally rather than gating behind a settings toggle.
-        batteryTrigger = BatteryPhs3Trigger(applicationContext, this)
-        batteryTrigger.start()
 
         // ── Idle thoughts fallback ─────────────────────────────────────────────────
         // Always registered last so it sits at the back of the priority queue.
@@ -502,11 +505,11 @@ class FidlandService : Service(), LifecycleOwner, SavedStateRegistryOwner {
         if (::callTrigger.isInitialized) callTrigger.stop()
         if (::whatsAppSource.isInitialized) NotificationListenerService.whatsAppSource = null
         if (::ringmodeTrigger.isInitialized) ringmodeTrigger.stop()
+        if (::cameraTrigger.isInitialized) cameraTrigger.stop()
         if (::flashlightTrigger.isInitialized)  flashlightTrigger.stop()
         if (::navigationTrigger.isInitialized)  navigationTrigger.stop()
         if (::alarmTrigger.isInitialized)       alarmTrigger.stop()
         if (::footballTrigger.isInitialized)    footballTrigger.stop()
-        if (::batteryTrigger.isInitialized)     batteryTrigger.stop()
         if (::recordTrigger.isInitialized) {
             recordTrigger.stop()
             NotificationListenerService.recorderSource = null
@@ -517,6 +520,7 @@ class FidlandService : Service(), LifecycleOwner, SavedStateRegistryOwner {
                 NotificationListenerService.downloadSource = null
             }
             if (::weatherTrigger.isInitialized) weatherTrigger.stop()
+            if (::calendarTrigger.isInitialized) calendarTrigger.stop()
             hideJob?.cancel()
             overlayManager.removeAll()
             serviceScope.cancel()

@@ -135,6 +135,11 @@ class PermissionsActivity : ComponentActivity() {
             // Needed by the Call module's phs5 recent-messages strip to pull
             // the last SMS/RCS message(s) from the caller — see call.kt.
             Manifest.permission.READ_SMS,
+            // Needed by the Calendar phs3 module (CalendarPhs3Trigger) to read
+            // upcoming events from CalendarContract — covers every synced
+            // calendar account (Google, Samsung, Outlook, etc.), since they
+            // all write into the same system provider.
+            Manifest.permission.READ_CALENDAR,
         )
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
             list += listOf(
@@ -176,6 +181,8 @@ class PermissionsActivity : ComponentActivity() {
                         "Phone state denied — cellular generation (4G/5G) won't be shown, signal bars still will."
                     Manifest.permission.READ_SMS ->
                         "SMS denied — the in-call recent-messages strip won't be shown."
+                    Manifest.permission.READ_CALENDAR ->
+                        "Calendar denied — upcoming events won't be shown."
                     Manifest.permission.BLUETOOTH_CONNECT,
                     Manifest.permission.BLUETOOTH_SCAN,
                     Manifest.permission.BLUETOOTH_ADVERTISE ->

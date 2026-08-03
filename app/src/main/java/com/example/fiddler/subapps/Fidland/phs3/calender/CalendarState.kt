@@ -39,6 +39,19 @@ fun CalendarEvent.startsInMs(nowMs: Long): Long =
 fun CalendarEvent.isOngoing(nowMs: Long): Boolean =
     nowMs in startMs until endMs
 
+/** True if [CalendarEvent.startMs] falls on the same calendar day as [nowMs]. */
+fun CalendarEvent.startsToday(nowMs: Long): Boolean {
+    val cal = java.util.Calendar.getInstance()
+    cal.timeInMillis = nowMs
+    cal.set(java.util.Calendar.HOUR_OF_DAY, 0)
+    cal.set(java.util.Calendar.MINUTE, 0)
+    cal.set(java.util.Calendar.SECOND, 0)
+    cal.set(java.util.Calendar.MILLISECOND, 0)
+    val todayStart = cal.timeInMillis
+    val tomorrowStart = todayStart + 24L * 60L * 60L * 1000L
+    return startMs in todayStart until tomorrowStart
+}
+
 /**
  * Indicator subtitle text:
  *   - All-day event           → "All day"
@@ -78,6 +91,26 @@ fun formatClockTime(epochMs: Long): String {
 fun CalendarEvent.timeRangeLabel(): String {
     if (isAllDay) return "All day"
     return "${formatClockTime(startMs)} – ${formatClockTime(endMs)}"
+}
+
+/** Formats an epoch-ms time as a short weekday + date, e.g. "Wed, Aug 12". */
+fun formatWeekdayDate(epochMs: Long): String {
+    val cal = java.util.Calendar.getInstance()
+    cal.timeInMillis = epochMs
+    val fmt = java.text.SimpleDateFormat("EEE, MMM d", java.util.Locale.getDefault())
+    fmt.calendar = cal
+    return fmt.format(cal.time)
+}
+
+/**
+ * Date-qualified label for events outside Today/Tomorrow — e.g.
+ * "Wed, Aug 12 · 9:00 – 9:30 AM" or "Wed, Aug 12 · All day". Without the
+ * weekday/date prefix, a card in "Upcoming this week" is indistinguishable
+ * from one happening tomorrow — both would just show a bare clock time.
+ */
+fun CalendarEvent.dateTimeRangeLabel(): String {
+    val datePart = formatWeekdayDate(startMs)
+    return if (isAllDay) "$datePart · All day" else "$datePart · ${timeRangeLabel()}"
 }
 
 /** Section grouping for the State 5 list. */

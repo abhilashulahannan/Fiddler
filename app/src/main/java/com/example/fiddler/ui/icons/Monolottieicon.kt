@@ -2,6 +2,7 @@ package com.example.fiddler.ui.icons
 
 import androidx.annotation.RawRes
 import androidx.compose.foundation.layout.size
+import androidx.compose.material3.Icon
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.ui.Modifier
@@ -11,6 +12,7 @@ import androidx.compose.ui.graphics.BlendMode
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.CompositingStrategy
 import androidx.compose.ui.graphics.graphicsLayer
+import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.unit.Dp
 import com.airbnb.lottie.compose.LottieAnimation
@@ -123,3 +125,33 @@ fun MonoLottieIcon(
     isPlaying   = isPlaying,
     speed       = speed,
 )
+
+/**
+ * Static-vector counterpart to [MonoLottieIcon], for tiles that don't have a
+ * dedicated Lottie asset yet (currently: Dev Options, Accessibility — see
+ * QuickSettingsTopic.kt). Uses a Material Symbols [ImageVector] instead of a
+ * res/raw animation.
+ *
+ * No SrcAtop stencil needed here — unlike Lottie compositions, `Icon` already
+ * tints its vector directly via `tint`, so this is a thin wrapper that just
+ * matches [MonoLottieIcon]'s call signature (`color`, `size`) so call sites
+ * can treat the two interchangeably.
+ *
+ * Swap a tile from this to [MonoLottieIcon] once its Lottie asset ships —
+ * no other call-site changes needed beyond the icon reference itself.
+ */
+@Composable
+fun MonoVectorIcon(
+    imageVector: ImageVector,
+    color: Color,
+    modifier: Modifier = Modifier,
+    size: Dp? = null,
+) {
+    val sized = if (size != null) modifier.size(size) else modifier
+    Icon(
+        imageVector        = imageVector,
+        contentDescription = null,
+        tint               = color,
+        modifier           = sized,
+    )
+}
