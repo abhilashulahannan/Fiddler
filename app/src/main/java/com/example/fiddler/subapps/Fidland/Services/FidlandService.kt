@@ -51,12 +51,14 @@ import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.cancel
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
-import com.example.fiddler.subapps.Fidland.phs3.idle.IdleThoughtsHandler
+import com.example.fiddler.subapps.Fidland.phs3.comms.CommsPhs3Trigger
+import com.example.fiddler.subapps.Fidland.phs3.idle.IdlePhs3Trigger
 import com.example.fiddler.subapps.Fidland.phs3.weather.WeatherPhs3Trigger
 import com.example.fiddler.subapps.Fidland.phs3.call.CallPhs3Trigger
 import com.example.fiddler.subapps.Fidland.phs3.call.WhatsAppNotificationSource
 import com.example.fiddler.subapps.Fidland.phs3.ringmode.RingmodePhs3Trigger
 import com.example.fiddler.subapps.Fidland.phs3.timer.TimerPhs3Trigger
+import com.example.fiddler.subapps.Fidland.phs3.ride.RidePhs3Trigger
 
 
 
@@ -83,6 +85,8 @@ class FidlandService : Service(), LifecycleOwner, SavedStateRegistryOwner {
     private lateinit var flashlightTrigger: FlashlightPhs3Trigger
     private lateinit var navigationTrigger: NavigationPhs3Trigger
     private lateinit var alarmTrigger: AlarmPhs3Trigger
+
+    private lateinit var commsTrigger: CommsPhs3Trigger
     private lateinit var footballTrigger: FootballPhs3Trigger
     private lateinit var downloadTrigger: DownloadPhs3Trigger
 
@@ -102,7 +106,10 @@ class FidlandService : Service(), LifecycleOwner, SavedStateRegistryOwner {
     private lateinit var batteryTrigger: BatteryPhs3Trigger
 
     private lateinit var timerTrigger: TimerPhs3Trigger
+
+    private lateinit var idleTrigger: IdlePhs3Trigger
     private lateinit var calendarTrigger: CalendarPhs3Trigger
+    private lateinit var rideTrigger: RidePhs3Trigger
 
 
     val phs3Manager = Phs3Manager(serviceScope)
@@ -208,6 +215,21 @@ class FidlandService : Service(), LifecycleOwner, SavedStateRegistryOwner {
         if (prefs.getBoolean("phs3_alarm", false))
             alarmTrigger.start()
 
+        // §B7 — event-driven, coDisplay; near-permanent-occupant risk noted
+        // in CommsPhs3Trigger's own kdoc, so gated the same way as torch/nav/alarm.
+        commsTrigger = CommsPhs3Trigger(applicationContext, serviceScope, this)
+        if (prefs.getBoolean("phs3_comms", false))
+            commsTrigger.start()
+
+        // §B7 Ride — was fully built (repository/trigger/handler) but never
+        // wired: phs3_ride existed as a dead settings toggle, RidePhs3Trigger
+        // was never constructed, and RideRepository's notification callbacks
+        // were never reached from NotificationListenerService. Gated the same
+        // way as torch/nav/alarm/comms — this is the first read of "phs3_ride".
+        rideTrigger = RidePhs3Trigger(applicationContext, serviceScope, this)
+        if (prefs.getBoolean("phs3_ride", false))
+            rideTrigger.start()
+
         // ── Weather trigger ────────────────────────────────────────────────────────
         weatherTrigger = WeatherPhs3Trigger(applicationContext, serviceScope, this)
         weatherTrigger.start()
@@ -274,10 +296,13 @@ class FidlandService : Service(), LifecycleOwner, SavedStateRegistryOwner {
         timerTrigger = TimerPhs3Trigger(serviceScope, phs3Manager)
         timerTrigger.start()
 
-        // ── Idle thoughts fallback ─────────────────────────────────────────────────
-        // Always registered last so it sits at the back of the priority queue.
-        // Visible only when every other phs3 handler has unregistered.
-        phs3Manager.register(IdleThoughtsHandler())
+        // ── Idle trigger ─────────────────────────────────────────────────────────
+        // §B7/§B8 #5 — Continuous-Dominant home bid (sub-score 10) + 5-minute
+        // thought clock + 60s global-staleness Special Condition promotion, all
+        // owned by the trigger itself (not a bare handler registration — see
+        // IdlePhs3Trigger's own kdoc "Wire-up in FidlandService" section).
+        idleTrigger = IdlePhs3Trigger(serviceScope, this)
+        idleTrigger.start()
 
         // ── Observe Phs3Manager → drive pill phase + activePhs3Handler ─────────
         serviceScope.launch {
@@ -552,6 +577,9 @@ class FidlandService : Service(), LifecycleOwner, SavedStateRegistryOwner {
         if (::navigationTrigger.isInitialized)  navigationTrigger.stop()
         if (::alarmTrigger.isInitialized)       alarmTrigger.stop()
         if (::footballTrigger.isInitialized)    footballTrigger.stop()
+        if (::idleTrigger.isInitialized)        idleTrigger.stop()
+        if (::commsTrigger.isInitialized)       commsTrigger.stop()
+        if (::rideTrigger.isInitialized)        rideTrigger.stop()
         if (::recordTrigger.isInitialized) {
             recordTrigger.stop()
             NotificationListenerService.recorderSource = null

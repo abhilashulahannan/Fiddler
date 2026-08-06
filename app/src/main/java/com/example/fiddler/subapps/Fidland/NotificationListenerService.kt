@@ -14,6 +14,8 @@ import kotlinx.coroutines.flow.asStateFlow
 import com.example.fiddler.subapps.Fidland.phs3.record.RecorderNotificationSource
 import com.example.fiddler.subapps.Fidland.phs3.timer.TimerNotificationSource
 import com.example.fiddler.subapps.Fidland.phs3.call.WhatsAppNotificationSource
+import com.example.fiddler.subapps.Fidland.phs3.ride.RideApp
+import com.example.fiddler.subapps.Fidland.phs3.ride.RideRepository
 
 /**
  * Two responsibilities:
@@ -56,6 +58,15 @@ class NotificationListenerService : NotificationListenerService() {
         /** Feeds phs5's recent-messages strip — see RecentMessages.kt. */
         var whatsAppSource: WhatsAppNotificationSource? = null
 
+        /**
+         * Set by RidePhs3Trigger.start()/stop() — RideRepository (unlike
+         * Download/Timer/Recorder) has no separate NotificationSource
+         * wrapper, so this flag gates the direct RideRepository calls below
+         * instead of a nullable source reference. Off by default so ride
+         * notifications aren't scraped while the phs3_ride setting is off.
+         */
+        var rideEnabled: Boolean = false
+
     }
 
     override fun onListenerConnected() {
@@ -69,6 +80,9 @@ class NotificationListenerService : NotificationListenerService() {
         downloadSource?.onNotificationPosted(sbn)
         recorderSource?.onNotificationPosted(sbn)
         whatsAppSource?.onNotificationPosted(sbn)
+        if (rideEnabled && RideApp.fromPackage(sbn.packageName) != null) {
+            RideRepository.onNotification(sbn)
+        }
 
         if (sbn.packageName in MUSIC_PACKAGES) return
         if (sbn.isOngoing) return
@@ -81,6 +95,9 @@ class NotificationListenerService : NotificationListenerService() {
         downloadSource?.onNotificationRemoved(sbn)
         recorderSource?.onNotificationRemoved(sbn)
         whatsAppSource?.onNotificationRemoved(sbn)
+        if (rideEnabled && RideApp.fromPackage(sbn.packageName) != null) {
+            RideRepository.onNotificationRemoved(sbn)
+        }
         refreshNotifications()
     }
 

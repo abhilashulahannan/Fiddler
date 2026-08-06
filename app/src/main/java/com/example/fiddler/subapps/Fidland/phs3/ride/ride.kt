@@ -61,20 +61,25 @@ import com.example.fiddler.subapps.Fidland.phs3.Phs3Handler
  *           "Open app" tap-through
  *
  * ── Wire-up ──────────────────────────────────────────────────────────────────
- * In the pill's left-zone composable (same pattern as AlbumArtSpinner):
- *
- *   if (activePhs3Handler is RidePhs3Handler) {
- *       (activePhs3Handler as RidePhs3Handler).LocationAIndicator()
- *   }
+ * §B9 Ride pass: [hasLocationA]/[LocationAContent] now go through the
+ * standard [Phs3Handler] contract — overlay_fidland_pill.kt's generic
+ * location-a row (`PillLeftZoneContent`'s `qualifiedHandlers.filter {
+ * it.hasLocationA }`) picks this handler up automatically, same as every
+ * other location-a participant except Music (which gets special first-slot
+ * treatment). No pill-file change needed. Previously this rendered via a
+ * bespoke `LocationAIndicator()` method the pill file never actually called
+ * — real code, but unreachable.
  */
 class RidePhs3Handler : Phs3Handler {
 
     override val label: String = "Ride"
 
-    // ── Location a — app icon (left of hole-punch) ────────────────────────────
+    // ── Location a — app name (left of hole-punch) ────────────────────────────
+
+    override val hasLocationA: Boolean = true
 
     @Composable
-    fun LocationAIndicator() {
+    override fun LocationAContent() {
         val snap by RideRepository.flow.collectAsState()
         if (!snap.isActive || snap.app == null) return
 

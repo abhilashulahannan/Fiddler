@@ -23,6 +23,7 @@ import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.example.fiddler.R
+import com.example.fiddler.subapps.Fidland.phs3.BlockAffinity
 import com.example.fiddler.subapps.Fidland.phs3.Phs3Handler
 import com.example.fiddler.ui.icons.MonoLottieIcon
 
@@ -53,6 +54,19 @@ class CommsPhs3Handler(
 ) : Phs3Handler {
 
     override val label: String = "Comms"
+
+    // §B7 — renders additively alongside whatever else holds the slot
+    // (Camera/Flashlight's mechanic), and is width-competitive like any
+    // other DYNAMIC block rather than pinned right — see CommsPhs3Trigger's
+    // class doc for why this handler is only ever registered transiently.
+    override val coDisplay: Boolean = true
+    override val blockAffinity: BlockAffinity = BlockAffinity.DYNAMIC
+
+    // §B7 — spec calls for the icon set itself to be the entire surface,
+    // straight to DASHBOARD on swipe-down (Camera/Battery's shape), not a
+    // separate reading view. The detail rows below remain implemented and
+    // reachable if this default is ever revisited — only the gate flips.
+    override fun hasState5Content(): Boolean = false
 
     @Composable
     override fun Indicator() {
