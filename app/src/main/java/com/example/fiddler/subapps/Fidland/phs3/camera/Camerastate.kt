@@ -8,6 +8,12 @@ package com.example.fiddler.subapps.Fidland.phs3.camera
  * while this app itself is capturing. See [CameraPhs3Trigger] for the
  * CameraManager.AvailabilityCallback wiring that populates this snapshot.
  *
+ * [isActive] is the single signal driving both qualification and §B7's
+ * Special-Condition promotion (sub-score 85, held indefinitely) — see
+ * [CameraPhs3Trigger]'s class doc. There is no separate "qualified but
+ * quiet at home class" state to represent; a sensor is either in use or
+ * it isn't.
+ *
  * @param activeCameraIds IDs of every camera sensor currently reported
  *                         unavailable (i.e. opened by some process). Usually
  *                         has at most one entry on typical phones, but is a

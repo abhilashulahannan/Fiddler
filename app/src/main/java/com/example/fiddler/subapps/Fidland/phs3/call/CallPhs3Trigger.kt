@@ -16,6 +16,8 @@ import android.telephony.TelephonyManager
 import androidx.core.content.ContextCompat
 import com.example.fiddler.subapps.Fidland.phs3.Phs3DebugLog
 import com.example.fiddler.subapps.Fidland.phs3.Phs3Manager
+import com.example.fiddler.subapps.Fidland.phs3.Phs3Priority
+import com.example.fiddler.subapps.Fidland.phs3.PriorityClass
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
@@ -110,6 +112,46 @@ import kotlinx.coroutines.withContext
  *
  * ── Import to add to FidlandService ──────────────────────────────────────────
  *   import com.example.fiddler.subapps.Fidland.phs3.call.CallPhs3Trigger
+ *
+ * ── §B6/§B7 wiring (this pass) — Call's first scheduler bids ────────────────
+ * Design doc §B7 gives Call two independent, simultaneously-live bids —
+ * [Phs3Scheduler] resolves between them (and against every other entity)
+ * by class then sub-score, so no special-casing is needed here beyond
+ * submitting the right numbers at the right moments:
+ *
+ * • **Active call — indefinite-hold Special Condition, sub-score 90.**
+ *   Submitted (under the `"Call"` label — see [ActiveCallPhs3Handler]'s
+ *   class doc on why that label, not `"ActiveCall"`) alongside every
+ *   [registerActiveCall] call, i.e. on RINGING and on OFFHOOK — both count
+ *   as "ringing/outgoing/in-progress" per §B7. `holdMs = null`: this is an
+ *   indefinite hold, not a timed promotion, so there's nothing for
+ *   [Phs3Priority.fallback] to do (ignored whenever `holdMs` is null — see
+ *   its own doc) — `null` is passed rather than a placeholder. Because
+ *   SPECIAL_CONDITION always outranks DOMINANT regardless of sub-score,
+ *   this bid beats a concurrent missed-calls-Dominant bid automatically —
+ *   §B7's "active-call's Special Condition holds regardless of missed-call
+ *   state" falls out of the scheduler's own sort, not a manual check.
+ * • **Missed calls — conditional Dominant, sub-score 50.** Submitted under
+ *   the `"MissedCall"` label whenever [refreshMissedCalls] finds ≥1 unread
+ *   missed call, withdrawn the instant the list empties — this is a
+ *   persists-until-cleared condition, not a Special Condition (not time-
+ *   bounded), same axis as Battery's low-battery escalation.
+ * • **Home Submissive/10** is deliberately *not* submitted anywhere in this
+ *   trigger. §B7 itself flags it as "rarely observed — nothing to show
+ *   until qualified": [ActiveCallPhs3Handler] only ever exists while
+ *   RINGING/OFFHOOK (i.e. already at the Special-Condition/90 bid above),
+ *   and is fully unregistered — not merely low-priority — the instant
+ *   CALL_STATE_IDLE fires. There is no qualified-but-idle state for this
+ *   handler to hold a Submissive bid *in*, so one submitted here would
+ *   either never win or reference a handler no longer in [manager]'s
+ *   `qualified` list. [stop] and the CALL_STATE_IDLE branch below both
+ *   [Phs3Scheduler.withdraw] `"Call"` outright rather than downgrading to a
+ *   bid nothing would ever observe.
+ * • **Block placement (§B2)** — the location-a icon / primary+secondary
+ *   split lives entirely on [ActiveCallPhs3Handler]/[MissedCallPhs3Handler]
+ *   via [com.example.fiddler.subapps.Fidland.phs3.Phs3Handler
+ *   .hasSecondaryBlock] — see their class docs. Nothing here changes for
+ *   that; this trigger only constructs handlers and submits priority bids.
  */
 class CallPhs3Trigger(
     private val context: Context,
@@ -191,7 +233,9 @@ class CallPhs3Trigger(
         Phs3DebugLog.onTriggerStop("Call")
         unregisterTelephonyListener()
         context.contentResolver.unregisterContentObserver(callLogObserver)
-        manager.unregister("ActiveCall")
+        manager.scheduler.withdraw("Call")
+        manager.scheduler.withdraw("MissedCall")
+        manager.unregister("Call")
         manager.unregister("MissedCall")
     }
 
@@ -327,7 +371,18 @@ class CallPhs3Trigger(
                 lastCallNumber = null
                 lastCallDirection = null
                 resetToggleState()
-                manager.unregister("ActiveCall")
+                // §B7 — withdraw outright, not downgrade to home Submissive/10:
+                // the handler is fully unregistered below too, so there's no
+                // qualified-but-idle state for a low bid to mean anything in.
+                // See class doc's "Home Submissive/10 is deliberately not
+                // submitted" note. Withdrawing "Call" here is also what lets
+                // a pending "MissedCall" Dominant/50 bid (if any) naturally
+                // win the scheduler's next recompute — §B7's "falls back to
+                // Dominant-if-missed-calls-pending else Submissive" falls out
+                // of the scheduler's own class/sub-score sort, not a manual
+                // fallback chain.
+                manager.scheduler.withdraw("Call")
+                manager.unregister("Call")
                 // A call just ended — re-check for missed calls immediately,
                 // since the log entry may not have been written yet. A short
                 // delay gives the telephony stack time to commit the log row.
@@ -370,36 +425,48 @@ class CallPhs3Trigger(
         connectionState: CallConnectionState,
         talkStartMs: Long?,
     ) {
-        manager.register(
-            ActiveCallPhs3Handler(
-                callInfo = ActiveCallInfo(
-                    displayName = displayName,
-                    phoneNumber = phoneNumber,
-                    direction = direction,
-                    connectionState = connectionState,
-                    talkStartMs = talkStartMs,
-                    isMuted = isMuted,
-                    isSpeakerOn = isSpeakerOn,
-                    isRecording = isRecording,
-                ),
-                onEndCall = { endCall() },
-                onMute = {
-                    isMuted = toggleMute()
-                    // Re-register (same label → replaces in-place, see
-                    // Phs3Manager.register) so the button grid repaints
-                    // immediately with the new toggle state.
-                    registerActiveCall(displayName, phoneNumber, direction, connectionState, talkStartMs)
-                },
-                onSpeaker = {
-                    isSpeakerOn = toggleSpeaker()
-                    registerActiveCall(displayName, phoneNumber, direction, connectionState, talkStartMs)
-                },
-                onRecord = {
-                    isRecording = openVoiceRecorder()
-                    registerActiveCall(displayName, phoneNumber, direction, connectionState, talkStartMs)
-                },
-                onAddCall = { openInCallUi() },
-                onKeypad = { openInCallUi() },
+        val handler = ActiveCallPhs3Handler(
+            callInfo = ActiveCallInfo(
+                displayName = displayName,
+                phoneNumber = phoneNumber,
+                direction = direction,
+                connectionState = connectionState,
+                talkStartMs = talkStartMs,
+                isMuted = isMuted,
+                isSpeakerOn = isSpeakerOn,
+                isRecording = isRecording,
+            ),
+            onEndCall = { endCall() },
+            onMute = {
+                isMuted = toggleMute()
+                // Re-register (same label → replaces in-place, see
+                // Phs3Manager.register) so the button grid repaints
+                // immediately with the new toggle state.
+                registerActiveCall(displayName, phoneNumber, direction, connectionState, talkStartMs)
+            },
+            onSpeaker = {
+                isSpeakerOn = toggleSpeaker()
+                registerActiveCall(displayName, phoneNumber, direction, connectionState, talkStartMs)
+            },
+            onRecord = {
+                isRecording = openVoiceRecorder()
+                registerActiveCall(displayName, phoneNumber, direction, connectionState, talkStartMs)
+            },
+            onAddCall = { openInCallUi() },
+            onKeypad = { openInCallUi() },
+        )
+        manager.register(handler)
+
+        // §B7 — ringing/outgoing/in-progress is an indefinite-hold Special
+        // Condition, sub-score 90. holdMs = null, so fallback is unused
+        // (ignored whenever holdMs is null) — see class doc.
+        manager.scheduler.submit(
+            Phs3Priority(
+                handler       = handler,
+                priorityClass = PriorityClass.SPECIAL_CONDITION,
+                subScore      = 90,
+                holdMs        = null,
+                fallback      = null,
             )
         )
     }
@@ -410,12 +477,23 @@ class CallPhs3Trigger(
         val missed = queryMissedCalls()
         Phs3DebugLog.onPoll("Call", "missedCalls=${missed.size}")
         if (missed.isEmpty()) {
+            manager.scheduler.withdraw("MissedCall")
             manager.unregister("MissedCall")
         } else {
-            manager.register(
-                MissedCallPhs3Handler(
-                    missedCalls = missed,
-                    onCallBack  = { number -> dialNumber(number) },
+            val handler = MissedCallPhs3Handler(
+                missedCalls = missed,
+                onCallBack  = { number -> dialNumber(number) },
+            )
+            manager.register(handler)
+            // §B7 — ≥1 unread missed call is a conditional-Dominant
+            // escalation, sub-score 50, persisting until cleared (not time-
+            // bounded, so no holdMs/fallback — same axis as Battery's low-
+            // battery escalation, not a Special Condition).
+            manager.scheduler.submit(
+                Phs3Priority(
+                    handler       = handler,
+                    priorityClass = PriorityClass.DOMINANT,
+                    subScore      = 50,
                 )
             )
         }

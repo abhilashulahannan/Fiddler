@@ -14,6 +14,44 @@ import kotlinx.coroutines.launch
  * Central authority that decides which phs3 handler is displayed in the pill
  * at any given moment.
  *
+ * ── §B1/§B9 wiring note (this pass) ─────────────────────────────────────────────
+ * Real (non-Idle) handler rotation is now delegated to [Phs3RotationPartitioner]
+ * ([realRotation]) instead of Phs3Manager hand-rolling its own
+ * currentRealIndex/rotationJob bookkeeping. Idle's own surface loop is
+ * UNCHANGED and still lives entirely in this class — §B1's Ambient policy
+ * generalization of that loop is explicitly deferred (see
+ * `Phs3SurfacePolicy.kt`'s class doc and the foundation table in the design
+ * doc), so Idle keeps its bespoke five-minute timer here rather than being
+ * folded into the partitioner.
+ *
+ * Every currently-registered [Phs3Handler] is [SurfacePolicy.CONTINUOUS]
+ * *except* Battery — see [policyOf] below. This pass is deliberately
+ * narrow: rather than fabricating placeholder class/sub-score priorities
+ * for every other entity (still an open step — design doc §B8 #14 — since
+ * it needs each entity's own §B7 numbers, e.g. Music Dominant/85), only
+ * Battery — the one entity whose §B7 numbers already exist (home
+ * Submissive/15) — is wired to prove [SurfacePolicy.EVENT_DRIVEN] and
+ * [Phs3Scheduler] end-to-end. [policyOf] stays a label lookup rather than a
+ * `Phs3Handler` interface property (per `Phs3SurfacePolicy.kt`'s own
+ * "WIRING" note) so extending this to the next entity is a one-line
+ * addition here, not an interface change.
+ *
+ * [scheduler] is exposed publicly (same pattern as [blockPlacementEngine])
+ * so [com.example.fiddler.subapps.Fidland.phs3.battery.BatteryPhs3Trigger]
+ * can [Phs3Scheduler.submit]/[Phs3Scheduler.withdraw] its own bid directly —
+ * this class does not submit priorities on any handler's behalf, since it
+ * has no visibility into an entity's class/sub-score logic (same reasoning
+ * as the "§B2 wiring note" below for block widths). [unregister] does
+ * withdraw generically by label as basic hygiene, so a trigger that forgets
+ * to withdraw on disqualify doesn't leave a stale bid behind.
+ *
+ * [surfaceEventDriven] / [resumeAfterEventDriven] are thin pass-throughs to
+ * [realRotation]'s own [Phs3RotationPartitioner.interrupt] /
+ * [Phs3RotationPartitioner.resumeAfterEventDriven] — an EVENT_DRIVEN
+ * handler's trigger still calls [register]/[unregister] as before for
+ * qualification bookkeeping; these two are purely about who holds the
+ * *rotating slot* right now, per `Phs3SurfacePolicy.kt`'s class doc.
+ *
  * ── Problem it solves ─────────────────────────────────────────────────────────
  * Previously, each trigger called [FidlandService.activatePhs3] directly,
  * meaning whichever trigger fired last simply won. There was no concept of
@@ -22,7 +60,7 @@ import kotlinx.coroutines.launch
  * ── How it works ──────────────────────────────────────────────────────────────
  * • Every phs3 trigger registers / unregisters its handler via [register] and
  *   [unregister]. The manager maintains an ordered [qualified] list.
- * • When more than one *real* (non-Idle) handler is qualified, the manager
+ * • When more than one *real* (non-Idle) handler is qualified, [realRotation]
  *   auto-rotates through them every [ROTATION_INTERVAL_MS] (default 10
  *   seconds) for the RIGHT ZONE indicator (location b/c). The full list is
  *   always visible in the LEFT ZONE via the location-a row.
@@ -34,15 +72,17 @@ import kotlinx.coroutines.launch
  *
  * ── Idle surfacing ────────────────────────────────────────────────────────────
  * IdleThoughtsHandler (label "Idle") is always registered and is always
- * present in [qualified], but it does NOT participate in the normal
- * round-robin among real handlers:
+ * present in [qualified], but it does NOT participate in [realRotation]:
  * • If Idle is the only qualified handler, it is shown continuously (no
  *   rotation needed — this is the normal "nothing else going on" state).
  * • If real handlers are also qualified, Idle is excluded from the swipe
  *   cycle ([cycleNext]/[cyclePrevious] only ever move between real
  *   handlers) but is force-surfaced for exactly one [ROTATION_INTERVAL_MS]
  *   turn every [IDLE_SURFACE_INTERVAL_MS] (default 5 minutes), then normal
- *   rotation resumes from wherever it left off among the real handlers.
+ *   rotation resumes from wherever it left off among the real handlers —
+ *   done by pausing [realRotation] via [Phs3RotationPartitioner.setPaused]
+ *   for the duration of Idle's surface window, so it neither publishes nor
+ *   loses its place while paused.
  * • If rotation is locked (long-press) when an Idle surface point is due,
  *   that occurrence is skipped entirely — the lock wins. It is not queued
  *   or replayed after unlock.
@@ -75,6 +115,24 @@ import kotlinx.coroutines.launch
  * High-urgency handlers (calls, alarms) should be registered before lower-
  * priority ones. The rotation loops back to index 0 after the last handler.
  *
+ * ── §B2 wiring note ────────────────────────────────────────────────────────────
+ * [blockPlacementEngine] is owned here (single shared instance, same pattern
+ * as [realRotation]) but this class deliberately never calls
+ * [Phs3BlockPlacementEngine.update] itself. Block widths for arbitrary
+ * handler content (location-a icons, the active handler's indicator) are
+ * only known once Compose measures them — see overlay_fidland_pill.kt's
+ * `onWidthMeasured` callbacks — and this class has no such visibility.
+ * Fabricating placeholder widths here would just be guessing at layout the
+ * UI layer already measures correctly.
+ *
+ * What this class *does* own: keeping [blockPlacementEngine]'s lifecycle in
+ * sync with [qualified] (see [unregister]'s empty-list branch). The actual
+ * `update(blocks)` calls with real measured widths belong in
+ * overlay_fidland_pill.kt, which has both handler identity (from
+ * [qualifiedHandlers]/[activeHandler]) and the measured widths needed to
+ * build real [Phs3Block]s. That wiring is the remaining §B2 build-order
+ * step (see fidland-condensed.md).
+ *
  * ── Thread safety ─────────────────────────────────────────────────────────────
  * All mutations happen on the [scope]'s dispatcher (Main). Callers from
  * background threads should either use [scope.launch] or ensure they're on Main.
@@ -83,7 +141,7 @@ class Phs3Manager(private val scope: CoroutineScope) {
 
     companion object {
         /** How long each real handler is shown before rotating to the next. */
-        const val ROTATION_INTERVAL_MS = 10_000L
+        const val ROTATION_INTERVAL_MS = Phs3RotationPartitioner.ROTATION_INTERVAL_MS
 
         /**
          * How often Idle gets force-surfaced for one turn when real handlers
@@ -100,9 +158,6 @@ class Phs3Manager(private val scope: CoroutineScope) {
 
     /** Ordered list of currently qualified handlers (includes Idle). */
     private val qualified = mutableListOf<Phs3Handler>()
-
-    /** Index into [realIndices] currently being shown in the RIGHT ZONE. */
-    private var currentRealIndex = 0
 
     /** True while Idle is being force-shown for its scheduled one-turn surface. */
     private var isIdleSurfacing = false
@@ -133,17 +188,54 @@ class Phs3Manager(private val scope: CoroutineScope) {
     /** Exposed so the pill UI can show a lock indicator if desired. */
     val lockedState: StateFlow<Boolean> = _isLocked
 
-    private var rotationJob: Job? = null
     private var idleSurfaceJob: Job? = null
+
+    /**
+     * Drives rotation among real (non-Idle) handlers — see §B1/§B9 wiring
+     * note above. [onTurnStart] is the only callback wired; there's nothing
+     * useful to do on [Phs3RotationPartitioner]'s `onTurnEnd` yet since
+     * [publish] is a plain overwrite and nothing downstream currently cares
+     * about "this handler's turn just ended" separately from "a new one
+     * started" (that distinction matters once [Phs3Scheduler] wiring lands).
+     */
+    private val realRotation = Phs3RotationPartitioner(
+        scope = scope,
+        policyOf = ::policyOf,
+        onTurnStart = { handler -> publish(handler) },
+    )
+
+    /**
+     * The only non-[SurfacePolicy.CONTINUOUS] entity wired so far — see
+     * class doc. Extend this `when` (not the `Phs3Handler` interface) as
+     * more entities' §B7 numbers get confirmed.
+     */
+    private fun policyOf(handler: Phs3Handler): SurfacePolicy = when (handler.label) {
+        "Battery" -> SurfacePolicy.EVENT_DRIVEN
+        else      -> SurfacePolicy.CONTINUOUS
+    }
+
+    /**
+     * Shared §B6 scheduler. See class doc — only Battery submits real bids
+     * here so far; everything else is silent (scheduler.activePriority
+     * simply reflects Battery's bid, or null, until more entities wire in).
+     */
+    val scheduler = Phs3Scheduler(scope)
+
+    /**
+     * Shared §B2 block-placement engine. See "§B2 wiring note" above — this
+     * class only owns its lifecycle (construction, [Phs3BlockPlacementEngine
+     * .reset] when [qualified] empties out); it never calls [Phs3BlockPlacementEngine
+     * .update] itself since it has no measured-width visibility.
+     */
+    val blockPlacementEngine = Phs3BlockPlacementEngine()
 
     // ── Internal helpers — real vs. Idle partitioning ───────────────────────────
 
-    /** Indices into [qualified] of every handler that isn't Idle. */
-    private val realIndices: List<Int>
-        get() = qualified.indices.filter { qualified[it].label != IDLE_LABEL }
-
     private val idleIndex: Int
         get() = qualified.indexOfFirst { it.label == IDLE_LABEL }
+
+    private fun realHandlers(): List<Phs3Handler> =
+        qualified.filter { it.label != IDLE_LABEL }
 
     // ── Public API — called by triggers ───────────────────────────────────────
 
@@ -151,7 +243,7 @@ class Phs3Manager(private val scope: CoroutineScope) {
      * Called by a phs3 trigger when its handler becomes qualified.
      *
      * If a handler with the same label is already registered, it is replaced
-     * in-place (same list position, currentRealIndex unchanged). This matters
+     * in-place (same list position, rotation position unchanged). This matters
      * for handlers like Music whose trigger creates a fresh handler object on
      * every track change — the old instance must be evicted so that Compose
      * sees a new `engine` key in DisposableEffect and restarts
@@ -169,6 +261,7 @@ class Phs3Manager(private val scope: CoroutineScope) {
             // Re-publish if this is the handler currently shown so the
             // overlay picks up the new instance immediately.
             if (_activeHandler.value?.label == handler.label) publish(handler)
+            if (handler.label != IDLE_LABEL) realRotation.updateQualified(realHandlers())
             return
         }
         Log.d("Phs3Manager", "register: ${handler.label} | qualified=${qualified.map { it.label }}")
@@ -179,21 +272,19 @@ class Phs3Manager(private val scope: CoroutineScope) {
         if (qualified.size == 1) {
             // First-ever handler (will be Idle in practice, since Idle
             // registers immediately at service start before anything else).
-            currentRealIndex = 0
             publish(handler)
-        } else if (handler.label != IDLE_LABEL && !isIdleSurfacing) {
-            // A new real handler just qualified. Show it immediately rather
-            // than waiting for the next rotation/idle-surface tick — e.g. an
-            // incoming call shouldn't wait up to ROTATION_INTERVAL_MS to
-            // appear. Jump the real-handler cursor to it directly.
-            val real = realIndices
-            val newPos = real.indexOf(qualified.size - 1)
-            if (newPos != -1) {
-                currentRealIndex = newPos
-                publish(handler)
+        }
+
+        if (handler.label != IDLE_LABEL) {
+            realRotation.updateQualified(realHandlers())
+            if (!isIdleSurfacing && qualified.size > 1) {
+                // A new real handler just qualified. Show it immediately rather
+                // than waiting for the next rotation/idle-surface tick — e.g. an
+                // incoming call shouldn't wait up to ROTATION_INTERVAL_MS to
+                // appear.
+                realRotation.jumpTo(handler)
             }
         }
-        restartRotation()
         restartIdleSurfaceTimer()
     }
 
@@ -209,17 +300,18 @@ class Phs3Manager(private val scope: CoroutineScope) {
         val wasShowingRemovedHandler = _activeHandler.value?.label == label
         qualified.removeAt(idx)
         publishQualified()
+        scheduler.withdraw(label) // no-op if this label never submitted a bid
 
         if (qualified.isEmpty()) {
-            currentRealIndex = 0
             isLocked = false
             isIdleSurfacing = false
             _isLocked.value = false
             _activeHandler.value = null
-            rotationJob?.cancel()
-            rotationJob = null
+            realRotation.updateQualified(emptyList())
+            realRotation.setLocked(false)
             idleSurfaceJob?.cancel()
             idleSurfaceJob = null
+            blockPlacementEngine.reset()
             return
         }
 
@@ -227,26 +319,48 @@ class Phs3Manager(private val scope: CoroutineScope) {
             isLocked = false
             _isLocked.value = false
             isIdleSurfacing = false
+            realRotation.setLocked(false)
         }
 
-        val real = realIndices
+        val real = realHandlers()
         if (real.isEmpty()) {
             // Only Idle (or nothing) left — show Idle continuously, no rotation.
-            currentRealIndex = 0
+            realRotation.updateQualified(emptyList())
             publish(qualified.getOrNull(idleIndex))
-            rotationJob?.cancel()
-            rotationJob = null
             idleSurfaceJob?.cancel()
             idleSurfaceJob = null
             return
         }
 
-        if (currentRealIndex >= real.size) currentRealIndex = 0
-        if (wasShowingRemovedHandler || !isIdleSurfacing) {
-            publish(qualified[real[currentRealIndex]])
-        }
-        restartRotation()
+        // updateQualified re-derives rotation position and — unless paused
+        // for Idle's surface window or locked — republishes the current real
+        // handler on its own, matching the old "publish unless idle is
+        // surfacing" behavior via [Phs3RotationPartitioner.setPaused].
+        realRotation.updateQualified(real)
         restartIdleSurfaceTimer()
+    }
+
+    // ── Public API — called by an EVENT_DRIVEN handler's own trigger ───────────
+
+    /**
+     * Gives [handler] the rotating slot immediately, pausing continuous
+     * rotation — see [Phs3RotationPartitioner.interrupt]. [handler] must
+     * already be [register]ed (i.e. present in [qualified]); this call is
+     * purely about display turn-taking, not qualification. No-op if
+     * [handler] isn't currently qualified.
+     */
+    fun surfaceEventDriven(handler: Phs3Handler) {
+        if (qualified.none { it.label == handler.label }) return
+        realRotation.interrupt(handler)
+    }
+
+    /**
+     * Hands the rotating slot back to continuous rotation — see
+     * [Phs3RotationPartitioner.resumeAfterEventDriven]. Safe to call even
+     * if nothing is currently interrupted (no-op in that case).
+     */
+    fun resumeAfterEventDriven() {
+        realRotation.resumeAfterEventDriven()
     }
 
     // ── Public API — called by gesture layer ──────────────────────────────────
@@ -259,13 +373,13 @@ class Phs3Manager(private val scope: CoroutineScope) {
      * Breaks any active lock and cancels an in-progress Idle surface.
      */
     fun cycleNext() {
-        val real = realIndices
-        if (real.size < 2) return
+        if (realHandlers().size < 2) return
         clearLock()
-        isIdleSurfacing = false
-        currentRealIndex = (currentRealIndex + 1) % real.size
-        publish(qualified[real[currentRealIndex]])
-        restartRotation()
+        if (isIdleSurfacing) {
+            isIdleSurfacing = false
+            realRotation.setPaused(false)
+        }
+        realRotation.advance(forward = true)
     }
 
     /**
@@ -276,13 +390,13 @@ class Phs3Manager(private val scope: CoroutineScope) {
      * in-progress Idle surface.
      */
     fun cyclePrevious() {
-        val real = realIndices
-        if (real.size < 2) return
+        if (realHandlers().size < 2) return
         clearLock()
-        isIdleSurfacing = false
-        currentRealIndex = (currentRealIndex - 1 + real.size) % real.size
-        publish(qualified[real[currentRealIndex]])
-        restartRotation()
+        if (isIdleSurfacing) {
+            isIdleSurfacing = false
+            realRotation.setPaused(false)
+        }
+        realRotation.advance(forward = false)
     }
 
     /**
@@ -298,12 +412,7 @@ class Phs3Manager(private val scope: CoroutineScope) {
         if (_activeHandler.value == null) return
         isLocked = !isLocked
         _isLocked.value = isLocked
-        if (isLocked) {
-            rotationJob?.cancel()
-            rotationJob = null
-        } else {
-            restartRotation()
-        }
+        realRotation.setLocked(isLocked)
     }
 
     // ── Internal ──────────────────────────────────────────────────────────────
@@ -312,6 +421,7 @@ class Phs3Manager(private val scope: CoroutineScope) {
         if (!isLocked) return
         isLocked = false
         _isLocked.value = false
+        realRotation.setLocked(false)
     }
 
     private fun publish(handler: Phs3Handler?) {
@@ -321,27 +431,6 @@ class Phs3Manager(private val scope: CoroutineScope) {
     /** Publishes an immutable snapshot of the qualified list. */
     private fun publishQualified() {
         _qualifiedHandlers.value = qualified.toList()
-    }
-
-    /** Round-robin among real (non-Idle) handlers only. No-op while Idle is surfacing. */
-    private fun restartRotation() {
-        rotationJob?.cancel()
-        rotationJob = null
-        if (isLocked) return
-
-        val real = realIndices
-        if (real.size < 2) return // nothing to rotate among real handlers
-
-        rotationJob = scope.launch {
-            while (true) {
-                delay(ROTATION_INTERVAL_MS)
-                if (isLocked || isIdleSurfacing) continue
-                val r = realIndices
-                if (r.size < 2) continue
-                currentRealIndex = (currentRealIndex + 1) % r.size
-                publish(qualified[r[currentRealIndex]])
-            }
-        }
     }
 
     /**
@@ -356,30 +445,26 @@ class Phs3Manager(private val scope: CoroutineScope) {
         idleSurfaceJob = null
 
         if (idleIndex == -1) return // Idle not registered (shouldn't happen in practice)
-        if (realIndices.isEmpty()) return // Idle alone — already shown continuously
+        if (realHandlers().isEmpty()) return // Idle alone — already shown continuously
 
         idleSurfaceJob = scope.launch {
             while (true) {
                 delay(IDLE_SURFACE_INTERVAL_MS)
-                val real = realIndices
+                val real = realHandlers()
                 val idx = idleIndex
                 if (isLocked || real.isEmpty() || idx == -1) continue // lock wins; occurrence skipped, not queued
 
                 isIdleSurfacing = true
-                publish(qualified[idx])
+                realRotation.setPaused(true) // holds realRotation's position without publishing
+                publish(qualified.getOrNull(idx))
                 delay(ROTATION_INTERVAL_MS)
                 isIdleSurfacing = false
 
                 // Resume normal rotation exactly where it left off, unless
-                // something changed (lock engaged, manual swipe, or real
-                // handlers all disqualified) while Idle was surfacing.
-                if (!isLocked) {
-                    val r = realIndices
-                    if (r.isNotEmpty()) {
-                        if (currentRealIndex >= r.size) currentRealIndex = 0
-                        publish(qualified[r[currentRealIndex]])
-                    }
-                }
+                // something changed while Idle was surfacing — setPaused(false)
+                // internally no-ops if realRotation is locked, and republishes
+                // wherever its cursor already sits if not.
+                realRotation.setPaused(false)
             }
         }
     }

@@ -29,6 +29,13 @@ import androidx.compose.ui.unit.dp
 import com.example.fiddler.subapps.Fidland.phs2.NetSpeedDisplay
 import com.example.fiddler.subapps.Fidland.phs3.music.AlbumArtSpinner
 import com.example.fiddler.subapps.Fidland.phs3.Phs3Handler
+import com.example.fiddler.subapps.Fidland.phs3.BlockAffinity
+import com.example.fiddler.subapps.Fidland.phs3.Phs3Block
+import com.example.fiddler.subapps.Fidland.phs3.Phs3BlockPlacementEngine
+import com.example.fiddler.subapps.Fidland.phs3.Phs3Layout
+import com.example.fiddler.subapps.Fidland.phs3.BlockSide
+import com.example.fiddler.subapps.Fidland.phs3.Phs3Priority
+import com.example.fiddler.subapps.Fidland.phs3.PriorityClass
 import com.example.fiddler.subapps.Fidland.phs3.download.DownloadPhs3Handler
 import com.example.fiddler.subapps.Fidland.music.MusicAppsRepository
 
@@ -121,6 +128,44 @@ enum class RightIndicator {
  * State 3      → BASE_SIZE + measured right content + CONTENT_PADDING_HORIZONTAL * 2
  * State 2+3    → left arm (fixed) + BASE_SIZE + right arm (measured)
  * State 4 / 5  → STATE4_MAX_WIDTH (fixed)
+ *
+ * ═══════════════════════════════════════════════════════════════
+ * §B2 WIRING (this pass) — plumbing + secondary blocks, still not
+ * cross-zone rendering
+ * ─────────────────────────────────────────────────────────────
+ * [blockPlacementEngine], if supplied, is fed real measured widths (see
+ * the LaunchedEffect below [FidlandIsland]'s zone rendering) every time
+ * they change, so [Phs3BlockPlacementEngine.update] is genuinely live
+ * end-to-end. As of this pass, a handler can also declare
+ * [Phs3Handler.hasSecondaryBlock] to split into two real, independently
+ * measured [Phs3Block]s instead of one — [RightIndicatorContent] renders
+ * [Phs3Handler.Indicator] and [Phs3Handler.SecondaryIndicator] as two
+ * separately-`onSizeChanged`-measured composables in that case, feeding
+ * `measuredPrimaryBlockWidth` / `measuredSecondaryBlockWidth` below instead
+ * of the one combined [RightZone] width. Ring Mode is the first to use this
+ * (icon = [BlockAffinity.DYNAMIC], text = [BlockAffinity.RIGHT_ANCHOR]).
+ *
+ * As of a later pass, cross-zone placement IS consumed by rendering for
+ * `BOTH_EXPANDED` (the only two-arm phase) — see "§B2 cross-zone placement
+ * resolution" below. `RIGHT_EXPANDED` deliberately still always renders
+ * RIGHT regardless of resolution, since that phase has no left zone to move
+ * content into.
+ *
+ * ── §B8 #16 — co-display rendering ────────────────────────────────────────
+ * A qualified handler with [Phs3Handler.coDisplay] == true (Camera,
+ * Flashlight) now renders its [Phs3Handler.Indicator] additively alongside
+ * whichever handler currently holds the rotating slot, instead of being
+ * limited to displacing it — see [coDisplayHandlers] below. Each co-display
+ * handler contributes its own [BlockAffinity.DYNAMIC] [Phs3Block] (forced to
+ * [Phs3Handler.coDisplaySide] when set, e.g. Camera's LEFT rule; otherwise
+ * ordinary width-based resolution, e.g. Flashlight) to the same balancer
+ * pass as the active handler's own block(s), and renders in
+ * [PillLeftZoneContent] or [RightIndicatorContent] depending on which side
+ * it resolves to — forced RIGHT in `RIGHT_EXPANDED` for the same
+ * no-left-zone reason as the active handler's own DYNAMIC blocks there.
+ * Per §B8 #13, co-display is suppressed entirely while Call's exclusive
+ * indefinite-hold Special Condition holds the slot — see
+ * `callExclusiveHoldActive` below, gated on [activeSchedulerPriority].
  */
 @Composable
 fun FidlandIsland(
@@ -132,12 +177,242 @@ fun FidlandIsland(
     qualifiedHandlers: List<Phs3Handler> = emptyList(),
     isRotationLocked: Boolean = false,
     onPhs3LongPress: () -> Unit = {},
+    /**
+     * Optional §B2 sink for real measured block widths — pass
+     * `phs3Manager.blockPlacementEngine`. Null (default) skips the
+     * LaunchedEffect below entirely; existing callers are unaffected.
+     */
+    blockPlacementEngine: Phs3BlockPlacementEngine? = null,
+    /**
+     * §B8 #13/#16 — pass `phs3Manager.scheduler.activePriority` so co-display
+     * rendering can tell when Call's exclusive indefinite-hold Special
+     * Condition holds the slot and suppress co-display entirely while it
+     * does (see [coDisplayHandlers] below). Null (default) — no bid known,
+     * treated the same as "not Call's exclusive hold," so co-display
+     * proceeds normally; matches every existing caller until it's wired
+     * through FidlandRootUI/FidlandService.
+     */
+    activeSchedulerPriority: Phs3Priority? = null,
+    /**
+     * Whether the net-speed display is currently on (settings toggle,
+     * `prefs.getBoolean("net_speed", ...)` at the FidlandService call
+     * site). Gates the NET_SPEED block below — per §B7's NetSpeed spec it's
+     * "shown continuously/unconditionally when on," which also means never
+     * present when off. Default false matches existing callers that don't
+     * pass it (no NET_SPEED block contributed, same as before this param
+     * existed).
+     */
+    netEnabled: Boolean = false,
     modifier: Modifier = Modifier,
 ) {
     val density = LocalDensity.current
 
     var measuredRightContentWidth by remember { mutableStateOf(0.dp) }
     var measuredLeftContentWidth  by remember { mutableStateOf(0.dp) }
+
+    // ── §B2 secondary-block measurement ─────────────────────────────────────
+    // Only populated for a handler with [Phs3Handler.hasSecondaryBlock] —
+    // see [RightIndicatorContent]. Both default to 0.dp and are simply
+    // unused (never fed to the engine) for every other handler, same as
+    // today. [measuredRightContentWidth] above still separately measures
+    // the *combined* right-zone content for pill-width animation — sizing
+    // behavior is unchanged; these two are only for feeding the balancer
+    // two real per-block widths instead of one combined one.
+    var measuredPrimaryBlockWidth   by remember { mutableStateOf(0.dp) }
+    var measuredSecondaryBlockWidth by remember { mutableStateOf(0.dp) }
+
+    // ── §B2 cross-zone placement ──────────────────────────────────────────
+    // [Phs3BlockPlacementEngine.currentLayout] is a plain (non-Compose-state)
+    // getter, so reading it directly wouldn't trigger recomposition when a
+    // DYNAMIC block's resolved side changes. This mirrors it into real
+    // Compose state, updated right after every [Phs3BlockPlacementEngine.update]
+    // call below (synchronous, same LaunchedEffect body — no extra latency).
+    // Null until the first [update] call publishes a layout; every render
+    // site below treats null the same as "resolved RIGHT", i.e. today's
+    // pre-cross-zone-rendering behavior, so there's no flash-of-wrong-zone
+    // before the first layout exists.
+    var currentLayout by remember { mutableStateOf<Phs3Layout?>(null) }
+
+    // ── §B8 #13/#16 — co-display handler set ────────────────────────────────
+    // Every *other* qualified handler that opted into [Phs3Handler.coDisplay]
+    // — i.e. not the one currently holding the rotating slot, since that
+    // handler's own block(s) already render via the primary/secondary path
+    // above, not this one. Per §B8 #13, suppressed entirely while Call's
+    // exclusive indefinite-hold Special Condition holds the slot: checked
+    // against [activeSchedulerPriority] directly rather than
+    // `activePhs3Handler.label == "Call"`, since the scheduler bid — not
+    // just "which handler is showing" — is the actual source of truth for
+    // "is this an exclusive hold right now" (a plain CONTINUOUS/DOMINANT
+    // Call bid, if that ever exists, would not suppress co-display).
+    val callExclusiveHoldActive = activeSchedulerPriority?.let { bid ->
+        bid.handler.label == "Call" &&
+                bid.priorityClass == PriorityClass.SPECIAL_CONDITION &&
+                bid.holdMs == null
+    } ?: false
+
+    val coDisplayHandlers: List<Phs3Handler> = if (callExclusiveHoldActive) {
+        emptyList()
+    } else {
+        qualifiedHandlers.filter { it.coDisplay && it.label != activePhs3Handler?.label }
+    }
+
+    // Per-co-display-handler measured [Indicator] width, keyed by label.
+    // [coDisplayWidthsVersion] exists purely to give the LaunchedEffect below
+    // a primitive key that changes on every map mutation — reading a
+    // SnapshotStateMap's entries from inside a suspend LaunchedEffect body
+    // isn't itself recomposition-tracked the way a @Composable read is, so a
+    // plain version counter is the simplest reliable trigger (same role
+    // [measuredPrimaryBlockWidth]/[measuredSecondaryBlockWidth] play for the
+    // single-handler case above).
+    val coDisplayMeasuredWidths = remember { mutableStateMapOf<String, Dp>() }
+    var coDisplayWidthsVersion by remember { mutableStateOf(0) }
+    fun onCoDisplayWidthMeasured(label: String, width: Dp) {
+        if (coDisplayMeasuredWidths[label] != width) {
+            coDisplayMeasuredWidths[label] = width
+            coDisplayWidthsVersion++
+        }
+    }
+
+    // ── §B2 block identity — shared by the LaunchedEffect below (building the
+    // block list) and the placement-resolution section after it (reading the
+    // result back out). Computed once per recomposition so both stay in sync.
+    val handlerHasSecondary = activePhs3Handler?.hasSecondaryBlock == true
+    val primaryBlockId = activePhs3Handler?.let { h ->
+        if (h.hasSecondaryBlock) "${h.label}_primary" else h.label
+    }
+    val secondaryBlockId = activePhs3Handler
+        ?.takeIf { it.hasSecondaryBlock }
+        ?.let { "${it.label}_secondary" }
+
+    // ── §B2 plumbing — feeds the placement engine, does not affect rendering ──
+    // See class doc "§B2 WIRING (this pass)" above. Rebuilds the best-effort
+    // current block set on every change to the values it depends on and lets
+    // Phs3BlockPlacementEngine.update's own diffing (see its class doc)
+    // decide whether that's actually a change worth publishing. No-op if
+    // [blockPlacementEngine] wasn't supplied.
+    //
+    // Known gap: [measuredLeftContentWidth] measures PillLeftZoneContent's
+    // *combined* location-a-row + NetSpeedDisplay width, not the two
+    // separately, so the LEFT_ANCHOR block below approximates the row's
+    // share via IslandConfig.locationARowWidth(count) rather than reusing
+    // this measurement directly, and NET_SPEED (when [netEnabled]) uses
+    // NET_SPEED_DISPLAY_WIDTH rather than a live measurement. Both are
+    // already fixed-width constants elsewhere in this file, so this
+    // doesn't regress accuracy — it just doesn't yet independently verify
+    // them via measurement.
+    //
+    // [measuredPrimaryBlockWidth]/[measuredSecondaryBlockWidth] now back
+    // *every* handler's block width fed to the balancer, not just
+    // hasSecondaryBlock handlers — a single DYNAMIC block (e.g. Flashlight)
+    // needs its own dedicated measurement too, since [measuredRightContentWidth]
+    // (the combined right-zone width) goes to zero once the balancer moves
+    // that block to the left zone and it stops rendering in the right zone
+    // at all. [measuredRightContentWidth] still separately drives pill-width
+    // animation for RIGHT_EXPANDED/BOTH_EXPANDED — unaffected.
+    LaunchedEffect(
+        blockPlacementEngine,
+        activePhs3Handler,
+        qualifiedHandlers,
+        measuredPrimaryBlockWidth,
+        measuredSecondaryBlockWidth,
+        netEnabled,
+        coDisplayHandlers,
+        coDisplayWidthsVersion,
+    ) {
+        val engine = blockPlacementEngine ?: return@LaunchedEffect
+
+        val locationACount = qualifiedHandlers.count { it.hasLocationA }
+        val blocks = buildList {
+            if (locationACount > 0) {
+                add(
+                    Phs3Block(
+                        id = "locationARow",
+                        affinity = BlockAffinity.LEFT_ANCHOR,
+                        width = IslandConfig.locationARowWidth(locationACount),
+                    )
+                )
+            }
+            if (netEnabled) {
+                add(
+                    Phs3Block(
+                        id = "netSpeed",
+                        affinity = BlockAffinity.NET_SPEED,
+                        width = NET_SPEED_DISPLAY_WIDTH,
+                    )
+                )
+            }
+            activePhs3Handler?.let { handler ->
+                add(
+                    Phs3Block(
+                        id = primaryBlockId!!,
+                        affinity = handler.blockAffinity,
+                        width = measuredPrimaryBlockWidth,
+                    )
+                )
+                if (handler.hasSecondaryBlock) {
+                    // Two real, independently-measured blocks — see
+                    // [Phs3Handler.hasSecondaryBlock]'s doc and
+                    // [RightIndicatorContent]'s measurement wiring below.
+                    add(
+                        Phs3Block(
+                            id = secondaryBlockId!!,
+                            affinity = handler.secondaryBlockAffinity,
+                            width = measuredSecondaryBlockWidth,
+                        )
+                    )
+                }
+            }
+            // §B8 #16 — one DYNAMIC block per co-display handler, forced to
+            // its declared [Phs3Handler.coDisplaySide] when set (Camera) or
+            // left to ordinary width-based resolution otherwise (Flashlight
+            // — see §B8 #11, "equal footing"). Added after the active
+            // handler's own block(s) so a co-display icon never displaces
+            // the active handler's placement/stability history for its id.
+            coDisplayHandlers.forEach { handler ->
+                add(
+                    Phs3Block(
+                        id = "${handler.label}_codisplay",
+                        affinity = BlockAffinity.DYNAMIC,
+                        width = coDisplayMeasuredWidths[handler.label] ?: 0.dp,
+                        forcedSide = handler.coDisplaySide,
+                    )
+                )
+            }
+        }
+        engine.update(blocks)
+        currentLayout = engine.currentLayout
+    }
+
+    // ── §B2 cross-zone placement resolution ─────────────────────────────────
+    // Only [BlockAffinity.DYNAMIC] blocks are ever eligible to move — the
+    // balancer never places LEFT_ANCHOR/NET_SPEED/RIGHT_ANCHOR anywhere but
+    // their fixed side (see [Phs3BlockBalancer.place]), so those affinities
+    // always resolve RIGHT here (matching their already-correct fixed
+    // render position; the location-a row and NetSpeed are left-anchored
+    // independently of this resolution, see [PillLeftZoneContent]). A
+    // handler whose block hasn't been placed yet (no [currentLayout] published,
+    // e.g. before the first [engine.update]) also resolves RIGHT — exactly
+    // today's pre-cross-zone-rendering behavior, so there's nothing to
+    // migrate for handlers that never opted into DYNAMIC.
+    fun resolvedSide(blockId: String?, affinity: BlockAffinity?): BlockSide {
+        if (blockId == null || affinity != BlockAffinity.DYNAMIC) return BlockSide.RIGHT
+        val layout = currentLayout ?: return BlockSide.RIGHT
+        return if (layout.leftDynamic.any { it.id == blockId }) BlockSide.LEFT else BlockSide.RIGHT
+    }
+
+    val primarySide: BlockSide = resolvedSide(primaryBlockId, activePhs3Handler?.blockAffinity)
+    val secondarySide: BlockSide = if (handlerHasSecondary) {
+        resolvedSide(secondaryBlockId, activePhs3Handler?.secondaryBlockAffinity)
+    } else {
+        BlockSide.RIGHT
+    }
+
+    // Same resolution as [resolvedSide] above, keyed to a co-display
+    // handler's own block id. Defaults to RIGHT before the first
+    // [engine.update] publishes a layout, same "no flash of wrong zone"
+    // reasoning as the primary/secondary case.
+    fun resolvedCoDisplaySide(handler: Phs3Handler): BlockSide =
+        resolvedSide("${handler.label}_codisplay", BlockAffinity.DYNAMIC)
 
     // ── Target pill width ─────────────────────────────────────────────────
     val targetWidth: Dp = when (phase) {
@@ -253,6 +528,16 @@ fun FidlandIsland(
                     }
 
                     // ── State 3 — right zone only ─────────────────────────────
+                    // No left zone exists in this phase (see PillPhase table —
+                    // net speed off, no location-a row rendered here either),
+                    // and its width model is a single asymmetric arm, not the
+                    // symmetric max(leftWidth, rightWidth) model the balancer
+                    // assumes (see Phs3block.kt's class doc, "BACKGROUND").
+                    // So cross-zone placement is intentionally not applied
+                    // here — always RIGHT, same as before this feature existed
+                    // — even if the balancer's last computation (run for
+                    // BOTH_EXPANDED, or stale from before a phase change)
+                    // resolved a block LEFT; there's nowhere left to render it.
                     PillPhase.RIGHT_EXPANDED -> {
                         PillRow(longPressHandler = activePhs3Handler, onLongPress = onPhs3LongPress) {
                             LeftZone { /* empty */ }
@@ -266,7 +551,23 @@ fun FidlandIsland(
                                     },
                                     label = "right_zone_content"
                                 ) { handler ->
-                                    RightIndicatorContent(handler, activeIndicators, currentIndicator)
+                                    RightIndicatorContent(
+                                        handler,
+                                        activeIndicators,
+                                        currentIndicator,
+                                        primarySide = BlockSide.RIGHT,
+                                        secondarySide = BlockSide.RIGHT,
+                                        onPrimaryWidthMeasured   = { measuredPrimaryBlockWidth = it },
+                                        onSecondaryWidthMeasured = { measuredSecondaryBlockWidth = it },
+                                        // No left zone in this phase (see
+                                        // class doc) — co-display is forced
+                                        // RIGHT regardless of resolution,
+                                        // same treatment as the active
+                                        // handler's own DYNAMIC blocks here.
+                                        coDisplayHandlers = coDisplayHandlers,
+                                        coDisplayResolvedSide = { BlockSide.RIGHT },
+                                        onCoDisplayWidthMeasured = ::onCoDisplayWidthMeasured,
+                                    )
                                 }
                             }
                         }
@@ -274,21 +575,38 @@ fun FidlandIsland(
 
                     // ── State 2+3 — both zones ────────────────────────────────
                     //
-                    // LEFT ZONE  → PillLeftZoneContent:
-                    //   Download active  →  [📶 location a]  [↓ net speed]
-                    //   Music playing    →  [🎵 album art]   [↓ net speed]
-                    //   Neither          →  [↓ net speed] only
+                    // The only phase with a real two-arm symmetric width model
+                    // (see Phs3block.kt's class doc, "BACKGROUND") — the one
+                    // place cross-zone placement is actually applied. A
+                    // BlockAffinity.DYNAMIC piece the balancer resolved to
+                    // BlockSide.LEFT renders via PillLeftZoneContent's dynamic
+                    // slot instead of RightIndicatorContent; everything else
+                    // (RIGHT_ANCHOR pieces, and any DYNAMIC piece still
+                    // resolved RIGHT) renders exactly as before.
                     //
-                    // RIGHT ZONE → phs3 handler Indicator():
-                    //   Download active  →  [ETA  ◯%]   (b + c)
-                    //   Other handler    →  whatever that handler renders
+                    // LEFT ZONE  → PillLeftZoneContent:
+                    //   Download active            →  [📶 location a]  [↓ net speed]
+                    //   Music playing               →  [🎵 album art]   [↓ net speed]
+                    //   Neither, DYNAMIC left       →  [dynamic block]  [↓ net speed]
+                    //   Neither, nothing dynamic    →  [↓ net speed] only
+                    //
+                    // RIGHT ZONE → phs3 handler Indicator()/SecondaryIndicator():
+                    //   Download active             →  [ETA  ◯%]   (b + c)
+                    //   Other handler                →  whatever's still resolved RIGHT
                     //
                     PillPhase.BOTH_EXPANDED -> {
                         PillRow(longPressHandler = activePhs3Handler, onLongPress = onPhs3LongPress) {
                             LeftZone(onWidthMeasured = { measuredLeftContentWidth = it }) {
                                 PillLeftZoneContent(
                                     activePhs3Handler = activePhs3Handler,
-                                    qualifiedHandlers = qualifiedHandlers
+                                    qualifiedHandlers = qualifiedHandlers,
+                                    primarySide = primarySide,
+                                    secondarySide = secondarySide,
+                                    onPrimaryWidthMeasured   = { measuredPrimaryBlockWidth = it },
+                                    onSecondaryWidthMeasured = { measuredSecondaryBlockWidth = it },
+                                    coDisplayHandlers = coDisplayHandlers,
+                                    coDisplayResolvedSide = ::resolvedCoDisplaySide,
+                                    onCoDisplayWidthMeasured = ::onCoDisplayWidthMeasured,
                                 )
                             }
                             HoleSpacer()
@@ -301,7 +619,18 @@ fun FidlandIsland(
                                     },
                                     label = "right_zone_content_both"
                                 ) { handler ->
-                                    RightIndicatorContent(handler, activeIndicators, currentIndicator)
+                                    RightIndicatorContent(
+                                        handler,
+                                        activeIndicators,
+                                        currentIndicator,
+                                        primarySide = primarySide,
+                                        secondarySide = secondarySide,
+                                        onPrimaryWidthMeasured   = { measuredPrimaryBlockWidth = it },
+                                        onSecondaryWidthMeasured = { measuredSecondaryBlockWidth = it },
+                                        coDisplayHandlers = coDisplayHandlers,
+                                        coDisplayResolvedSide = ::resolvedCoDisplaySide,
+                                        onCoDisplayWidthMeasured = ::onCoDisplayWidthMeasured,
+                                    )
                                 }
                             }
                         }
@@ -427,16 +756,97 @@ private fun RowScope.RightZone(
 // ── Content composables ───────────────────────────────────────────────────────
 
 /**
- * Renders the active phs3 handler's [Phs3Handler.Indicator] in the RIGHT ZONE
- * (locations b and c).
+ * Wraps [content] in a Box that reports its own intrinsic width via
+ * [onWidthMeasured] on every size change — the shared per-block measurement
+ * primitive used by both [RightIndicatorContent] and the left-zone dynamic
+ * slot, so a handler's block is measured identically no matter which zone
+ * it ends up rendering in.
+ */
+@Composable
+private fun MeasuredSlot(onWidthMeasured: (Dp) -> Unit, content: @Composable () -> Unit) {
+    val density = LocalDensity.current
+    Box(
+        modifier = Modifier.onSizeChanged { size ->
+            onWidthMeasured(with(density) { size.width.toDp() })
+        }
+    ) {
+        content()
+    }
+}
+
+/**
+ * Renders the active phs3 handler's indicator(s) in the RIGHT ZONE
+ * (locations b and c) — only the pieces currently resolved to
+ * [BlockSide.RIGHT]. A [BlockAffinity.DYNAMIC] piece resolved to
+ * [BlockSide.LEFT] is rendered by [LeftZoneDynamicContent] instead; see
+ * [FidlandIsland]'s "§B2 cross-zone placement resolution" section for how
+ * [primarySide]/[secondarySide] get resolved, and its call sites for why
+ * [PillPhase.RIGHT_EXPANDED] always passes RIGHT regardless (no left zone
+ * exists in that phase to move into — see that call site's comment).
+ *
+ * Two paths:
+ * • [Phs3Handler.hasSecondaryBlock] == false (default, most handlers):
+ *   renders [Phs3Handler.Indicator] alone when [primarySide] == RIGHT.
+ * • `hasSecondaryBlock == true`: renders [Phs3Handler.Indicator] (primary)
+ *   then [Phs3Handler.SecondaryIndicator] (secondary), left-to-right — same
+ *   visual order the old fused Row would have produced — each gated on its
+ *   own resolved side, each reporting its *own* width via
+ *   [onPrimaryWidthMeasured] / [onSecondaryWidthMeasured] so the caller
+ *   feeds two real, independently-measured [Phs3Block]s to the balancer.
  */
 @Composable
 private fun RightIndicatorContent(
     activePhs3Handler: Phs3Handler?,
     activeIndicators: List<RightIndicator>,
-    currentIndicator: Int
+    currentIndicator: Int,
+    primarySide: BlockSide = BlockSide.RIGHT,
+    secondarySide: BlockSide = BlockSide.RIGHT,
+    onPrimaryWidthMeasured: (Dp) -> Unit = {},
+    onSecondaryWidthMeasured: (Dp) -> Unit = {},
+    /**
+     * §B8 #16 — qualified handlers co-displaying alongside
+     * [activePhs3Handler] (never including it — see [FidlandIsland]'s
+     * `coDisplayHandlers`). Only the ones [coDisplayResolvedSide] resolves
+     * to [BlockSide.RIGHT] render here; the rest render in
+     * [PillLeftZoneContent] instead.
+     */
+    coDisplayHandlers: List<Phs3Handler> = emptyList(),
+    coDisplayResolvedSide: (Phs3Handler) -> BlockSide = { BlockSide.RIGHT },
+    onCoDisplayWidthMeasured: (String, Dp) -> Unit = { _, _ -> },
 ) {
-    activePhs3Handler?.Indicator()
+    val rightCoDisplay = coDisplayHandlers.filter { coDisplayResolvedSide(it) == BlockSide.RIGHT }
+
+    Row(verticalAlignment = Alignment.CenterVertically) {
+        if (activePhs3Handler != null) {
+            if (activePhs3Handler.hasSecondaryBlock) {
+                if (primarySide == BlockSide.RIGHT) {
+                    MeasuredSlot(onPrimaryWidthMeasured) { activePhs3Handler.Indicator() }
+                }
+                if (secondarySide == BlockSide.RIGHT) {
+                    MeasuredSlot(onSecondaryWidthMeasured) { activePhs3Handler.SecondaryIndicator() }
+                }
+            } else if (primarySide == BlockSide.RIGHT) {
+                MeasuredSlot(onPrimaryWidthMeasured) { activePhs3Handler.Indicator() }
+            }
+        }
+
+        // ── §B8 #16 — co-display icons, additive alongside whatever's
+        // above, never displacing it. Gap only applied when there's
+        // something to separate from (an empty Row here costs nothing).
+        if (rightCoDisplay.isNotEmpty()) {
+            Spacer(Modifier.width(IslandConfig.DYNAMIC_BLOCK_GAP))
+            Row(
+                verticalAlignment     = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.spacedBy(IslandConfig.DYNAMIC_BLOCK_GAP)
+            ) {
+                rightCoDisplay.forEach { handler ->
+                    MeasuredSlot(onWidthMeasured = { onCoDisplayWidthMeasured(handler.label, it) }) {
+                        handler.Indicator()
+                    }
+                }
+            }
+        }
+    }
 
     if (activeIndicators.isEmpty()) return
     // Future non-phs3 indicators:
@@ -447,14 +857,47 @@ private fun RightIndicatorContent(
 }
 
 /**
+ * Renders whichever of the active handler's block(s) are currently resolved
+ * to [BlockSide.LEFT] — the mirror image of [RightIndicatorContent]. Only
+ * ever non-empty for a [BlockAffinity.DYNAMIC] block the balancer has moved
+ * left (e.g. Flashlight's icon, or Ring Mode's icon when
+ * [Phs3Handler.hasSecondaryBlock] is set) — [BlockAffinity.RIGHT_ANCHOR]
+ * pieces never resolve LEFT (see [FidlandIsland]'s `resolvedSide`), so for
+ * every handler that hasn't opted into DYNAMIC this renders nothing, same
+ * as before cross-zone placement existed.
+ */
+@Composable
+private fun LeftZoneDynamicContent(
+    activePhs3Handler: Phs3Handler?,
+    primarySide: BlockSide,
+    secondarySide: BlockSide,
+    onPrimaryWidthMeasured: (Dp) -> Unit,
+    onSecondaryWidthMeasured: (Dp) -> Unit,
+) {
+    if (activePhs3Handler == null) return
+    if (primarySide == BlockSide.LEFT) {
+        MeasuredSlot(onPrimaryWidthMeasured) { activePhs3Handler.Indicator() }
+    }
+    if (activePhs3Handler.hasSecondaryBlock && secondarySide == BlockSide.LEFT) {
+        MeasuredSlot(onSecondaryWidthMeasured) { activePhs3Handler.SecondaryIndicator() }
+    }
+}
+
+/**
  * LEFT ZONE content — used by both LEFT_EXPANDED and BOTH_EXPANDED.
  *
  * Layout (left → right, all vertically centered):
  *
- *   [location-a row]  [gap]  [NetSpeedDisplay]
+ *   [location-a row]  [gap]  [dynamic-left handler block, if any]  [gap]  [NetSpeedDisplay]
  *
  * NetSpeedDisplay is NOT part of the location-a row — it is always a
  * separate, fixed-width slot immediately left of the hole-punch spacer.
+ * The dynamic-left slot is populated only when [FidlandIsland]'s balancer
+ * has resolved a piece of the active handler's block(s) to
+ * [BlockSide.LEFT] — see [LeftZoneDynamicContent] and [FidlandIsland]'s
+ * "§B2 cross-zone placement resolution" section. Empty for every handler
+ * that hasn't opted into [BlockAffinity.DYNAMIC], same as before cross-zone
+ * placement existed.
  *
  * Location-a row ordering (left → right):
  *   Music album art always comes first (sortedBy priority 0).
@@ -478,11 +921,25 @@ private fun RightIndicatorContent(
 private fun PillLeftZoneContent(
     activePhs3Handler: Phs3Handler?,
     qualifiedHandlers: List<Phs3Handler>,
+    primarySide: BlockSide = BlockSide.RIGHT,
+    secondarySide: BlockSide = BlockSide.RIGHT,
+    onPrimaryWidthMeasured: (Dp) -> Unit = {},
+    onSecondaryWidthMeasured: (Dp) -> Unit = {},
+    /** §B8 #16 — see [RightIndicatorContent]'s matching params. Only the
+     * handlers [coDisplayResolvedSide] resolves to [BlockSide.LEFT] render
+     * here; the rest render in [RightIndicatorContent] instead. */
+    coDisplayHandlers: List<Phs3Handler> = emptyList(),
+    coDisplayResolvedSide: (Phs3Handler) -> BlockSide = { BlockSide.RIGHT },
+    onCoDisplayWidthMeasured: (String, Dp) -> Unit = { _, _ -> },
 ) {
     val rowItems =
         qualifiedHandlers
             .filter { it.hasLocationA }
             .sortedBy { if (it.label == "Music") 0 else 1 }
+
+    val hasDynamicLeftContent = activePhs3Handler != null &&
+            (primarySide == BlockSide.LEFT ||
+                    (activePhs3Handler.hasSecondaryBlock && secondarySide == BlockSide.LEFT))
 
     Row(
         verticalAlignment = Alignment.CenterVertically
@@ -517,8 +974,38 @@ private fun PillLeftZoneContent(
                 }
             }
 
-            // Gap between location-a row and NetSpeedDisplay
+            // Gap between location-a row and whatever comes next.
             Spacer(Modifier.width(IslandConfig.MUSIC_ALBUM_ART_GAP))
+        }
+
+        // ── Dynamic-left handler block, if the balancer placed one here ────
+        if (hasDynamicLeftContent) {
+            LeftZoneDynamicContent(
+                activePhs3Handler = activePhs3Handler,
+                primarySide = primarySide,
+                secondarySide = secondarySide,
+                onPrimaryWidthMeasured = onPrimaryWidthMeasured,
+                onSecondaryWidthMeasured = onSecondaryWidthMeasured,
+            )
+            Spacer(Modifier.width(IslandConfig.MUSIC_ALBUM_ART_GAP))
+        }
+
+        // ── §B8 #16 — co-display icons the balancer placed on this side ────
+        // Additive alongside whatever else is in this zone, never displacing
+        // the location-a row or the dynamic-left handler block above.
+        val leftCoDisplay = coDisplayHandlers.filter { coDisplayResolvedSide(it) == BlockSide.LEFT }
+        if (leftCoDisplay.isNotEmpty()) {
+            Row(
+                verticalAlignment     = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.spacedBy(IslandConfig.DYNAMIC_BLOCK_GAP)
+            ) {
+                leftCoDisplay.forEach { handler ->
+                    MeasuredSlot(onWidthMeasured = { onCoDisplayWidthMeasured(handler.label, it) }) {
+                        handler.Indicator()
+                    }
+                }
+            }
+            Spacer(Modifier.width(IslandConfig.DYNAMIC_ZONE_ANCHOR_GAP))
         }
 
         // ── NetSpeedDisplay — always fixed-width, immediately left of hole ──

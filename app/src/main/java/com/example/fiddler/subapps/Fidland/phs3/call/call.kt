@@ -52,6 +52,7 @@ import androidx.compose.ui.graphics.luminance
 import androidx.compose.ui.graphics.vector.ImageVector
 import com.example.fiddler.R
 import com.example.fiddler.subapps.Fidland.NotificationListenerService
+import com.example.fiddler.subapps.Fidland.phs3.BlockAffinity
 import com.example.fiddler.subapps.Fidland.phs3.Phs3Handler
 import com.example.fiddler.subapps.Fidland.phs3.shared.EqualizerContext
 import com.example.fiddler.subapps.Fidland.phs3.shared.EqualizerIndicator
@@ -70,6 +71,27 @@ private const val MISSED_CALL_ROTATE_INTERVAL_MS = 4_000L
 /** Timer tick interval for the active-call duration counter (ms). */
 private const val CALL_TIMER_TICK_MS = 1_000L
 
+/**
+ * §B7 — gap between blocks that used to share one fused Row's
+ * `Arrangement.spacedBy`. Now that the phone icon lives in location-a and
+ * [ActiveCallPhs3Handler]'s timer+equalizer / name are two independently-
+ * placed §B2 blocks (same story for [MissedCallPhs3Handler]'s badge/name),
+ * each block bakes in its own share of this gap as start-padding — same
+ * idiom as Music's/Battery's/Ring Mode's SecondaryIndicator.
+ */
+private val CALL_BLOCK_GAP: Dp = 4.dp
+
+// §B7 — compact equalizer for [ActiveCallPhs3Handler.Indicator] (primary
+// block). New for this pass — the compact indicator never had an equalizer
+// before, only State5 did (see its Row 2). Deliberately smaller/sparser
+// than State5's 9-bar version, same relationship Music's compact eq has to
+// its own indicator scale.
+private const val CALL_EQ_BAR_COUNT: Int = 5
+private val CALL_EQ_BAR_WIDTH: Dp = 2.dp
+private val CALL_EQ_BAR_SPACING: Dp = 2.dp
+private val CALL_EQ_MAX_HEIGHT: Dp = 12.dp
+private val CALL_EQ_MIN_HEIGHT: Dp = 2.dp
+
 // ─────────────────────────────────────────────────────────────────────────────
 //  ACTIVE CALL HANDLER
 // ─────────────────────────────────────────────────────────────────────────────
@@ -80,12 +102,32 @@ private const val CALL_TIMER_TICK_MS = 1_000L
  * Qualifies when the device has an active incoming or outgoing call
  * (via TelecomManager / InCallService). Deactivates once the call ends.
  *
- * Layout (State 3 indicator):
- *   a  — [CallPhoneIcon] in green (Lottie, res/raw/call_call.json).
- *   b  — Live call-duration timer (MM:SS / H:MM:SS). Shown only once
- *          [ActiveCallInfo.connectionState] transitions to ACTIVE; blank while
- *          RINGING or CONNECTING.
- *   c  — Two-line text: contact name (bold, larger) / phone number (dim, smaller).
+ * ── §B7 label (this pass) ────────────────────────────────────────────────
+ * [label] is `"Call"`, not `"ActiveCall"` — the class name keeps its
+ * original name (same file/identity-key naming inconsistency Ring Mode
+ * documents for itself: `RingmodePhs3Trigger` / `"Volume"`), but the
+ * identity key the rest of the app keys off has to be `"Call"` to match
+ * `overlay_fidland_pill.kt`'s pre-existing §B8 #13 co-display-suppression
+ * check (`bid.handler.label == "Call"`), which was built ahead of Call's
+ * own scheduler wiring landing (see [CallPhs3Trigger]'s class doc — "Call
+ * itself doesn't submit scheduler bids yet" is what this pass resolves).
+ *
+ * ── §B7 Blocks (this pass) ────────────────────────────────────────────────
+ * Replaces the old single fused Row with location-a + 2 §B2 blocks, via
+ * [Phs3Handler.hasSecondaryBlock] (same mechanic Ring Mode/Battery/Music
+ * use — see their class docs for the shared plumbing):
+ *   • [LocationAContent] — green [CallPhoneIcon], persists in location-a
+ *     regardless of active-slot status, same pattern as Music's album art.
+ *   • [Indicator] (primary, [BlockAffinity.DYNAMIC]) — call-duration timer
+ *     text + a new compact equalizer (State 3 never had one before; only
+ *     State5 did). The two are fused into one block rather than split
+ *     further, since the interface only supports a primary+secondary pair
+ *     and both pieces are equally "dynamic" — they always move together.
+ *   • [SecondaryIndicator] (secondary, [BlockAffinity.RIGHT_ANCHOR]) —
+ *     contact name / phone number, 2-line.
+ * In `BOTH_EXPANDED` the timer+equalizer block can now land in the left
+ * zone when the §B2 balancer resolves it there; `RIGHT_EXPANDED` has no
+ * left zone to move into, so both blocks stay put next to each other there.
  *
  * State 5 ([ControlsPanel]) — redesigned, still a compact 280×150.dp strip
  * (see [state5HeightOverride]), not a full in-call screen:
@@ -135,11 +177,26 @@ class ActiveCallPhs3Handler(
     private val onKeypad: () -> Unit = {},
 ) : Phs3Handler {
 
-    override val label: String = "ActiveCall"
+    override val label: String = "Call"
+
+    override val hasLocationA: Boolean = true
+    override val hasSecondaryBlock: Boolean = true
+    override val blockAffinity: BlockAffinity = BlockAffinity.DYNAMIC
+    override val secondaryBlockAffinity: BlockAffinity = BlockAffinity.RIGHT_ANCHOR
 
     // Header + equalizer + 6-button control row need more vertical room
     // than the shared IslandConfig.STATE5_HEIGHT default (115.dp) allows.
     override val state5HeightOverride: Dp = 150.dp
+
+    // ── LocationAContent — green phone icon, persists regardless of ─────────
+    // ── active-slot status (same pattern as Music's album art) ──────────────
+
+    @Composable
+    override fun LocationAContent() {
+        CallPhoneIcon(missed = false, size = 16.dp)
+    }
+
+    // ── Indicator (primary block — timer + compact equalizer, DYNAMIC) ──────
 
     @Composable
     override fun Indicator() {
@@ -155,18 +212,14 @@ class ActiveCallPhs3Handler(
 
         Row(
             verticalAlignment = Alignment.CenterVertically,
-            horizontalArrangement = Arrangement.spacedBy(4.dp),
+            horizontalArrangement = Arrangement.spacedBy(CALL_BLOCK_GAP),
         ) {
-            // ── Location A: green phone icon ──────────────────────────────
-            CallPhoneIcon(missed = false, size = 16.dp)
-
-            // ── Location B: call duration timer ──────────────────────────
-            // Blank while ringing; starts once the call is accepted (talkStartMs set).
-            val timerText = if (callInfo.connectionState == CallConnectionState.ACTIVE) {
-                formatDuration(callInfo.elapsedMs(nowMs))
-            } else {
-                // Show direction hint while ringing.
-                when (callInfo.direction) {
+            // Duration timer / direction hint.
+            // Blank state while ringing/on-hold; live MM:SS once ACTIVE.
+            val timerText = when (callInfo.connectionState) {
+                CallConnectionState.ACTIVE -> formatDuration(callInfo.elapsedMs(nowMs))
+                CallConnectionState.ON_HOLD -> "On hold"
+                CallConnectionState.RINGING -> when (callInfo.direction) {
                     CallDirection.INCOMING -> "Incoming…"
                     CallDirection.OUTGOING -> "Calling…"
                 }
@@ -181,33 +234,56 @@ class ActiveCallPhs3Handler(
                 modifier = Modifier.width(38.dp),
             )
 
-            // ── Location C: name (top, bigger) + number (bottom, smaller) ─
-            Column(
-                horizontalAlignment = Alignment.Start,
-                verticalArrangement = Arrangement.Center,
-                modifier = Modifier.width(CALL_TEXT_COLUMN_WIDTH),
-            ) {
+            // Compact equalizer — new for State 3 (State5 already had one).
+            // Animates while ACTIVE + unmuted; stills otherwise, same honest-
+            // reflection rule as State5's Row 2.
+            val eqLive = callInfo.connectionState == CallConnectionState.ACTIVE && !callInfo.isMuted
+            EqualizerIndicator(
+                mode = EqualizerMode.Simulated(
+                    if (eqLive) EqualizerContext.CALL else EqualizerContext.RECORD
+                ),
+                barCount = CALL_EQ_BAR_COUNT,
+                barWidth = CALL_EQ_BAR_WIDTH,
+                barSpacing = CALL_EQ_BAR_SPACING,
+                maxHeight = CALL_EQ_MAX_HEIGHT,
+                minHeight = CALL_EQ_MIN_HEIGHT,
+                color = if (eqLive) Color(0xFF4ADE80) else Color(0xFF3A3A3A),
+            )
+        }
+    }
+
+    // ── SecondaryIndicator (secondary block — name/number, RIGHT_ANCHOR) ────
+
+    /** Carries [CALL_BLOCK_GAP] as start-padding — see that constant's doc. */
+    @Composable
+    override fun SecondaryIndicator() {
+        Column(
+            horizontalAlignment = Alignment.Start,
+            verticalArrangement = Arrangement.Center,
+            modifier = Modifier
+                .padding(start = CALL_BLOCK_GAP)
+                .width(CALL_TEXT_COLUMN_WIDTH),
+        ) {
+            Text(
+                text = callInfo.displayName ?: callInfo.phoneNumber,
+                color = Color.White,
+                fontSize = 9.sp,
+                lineHeight = 10.sp,
+                fontWeight = FontWeight.Bold,
+                maxLines = 1,
+                overflow = TextOverflow.Ellipsis,
+                modifier = Modifier.fillMaxWidth(),
+            )
+            if (callInfo.displayName != null) {
                 Text(
-                    text = callInfo.displayName ?: callInfo.phoneNumber,
-                    color = Color.White,
-                    fontSize = 9.sp,
-                    lineHeight = 10.sp,
-                    fontWeight = FontWeight.Bold,
+                    text = callInfo.phoneNumber,
+                    color = Color(0xFFAAAAAA),
+                    fontSize = 7.sp,
+                    lineHeight = 8.sp,
                     maxLines = 1,
                     overflow = TextOverflow.Ellipsis,
                     modifier = Modifier.fillMaxWidth(),
                 )
-                if (callInfo.displayName != null) {
-                    Text(
-                        text = callInfo.phoneNumber,
-                        color = Color(0xFFAAAAAA),
-                        fontSize = 7.sp,
-                        lineHeight = 8.sp,
-                        maxLines = 1,
-                        overflow = TextOverflow.Ellipsis,
-                        modifier = Modifier.fillMaxWidth(),
-                    )
-                }
             }
         }
     }
@@ -381,12 +457,21 @@ class ActiveCallPhs3Handler(
  * Qualifies when at least one missed call has been received in the last 24 hours.
  * Deactivates once all missed calls are acknowledged / cleared.
  *
+ * ── §B7 Blocks (this pass) ────────────────────────────────────────────────
+ * Timer and equalizer are [ActiveCallPhs3Handler]-only — "hidden on
+ * MissedCall" per the design doc — so unlike ActiveCall this handler
+ * doesn't need [Phs3Handler.hasSecondaryBlock]'s primary/secondary split;
+ * the count badge + name/number stay one fused block (still [Indicator],
+ * default [BlockAffinity.RIGHT_ANCHOR] — matches "caller name/number =
+ * right, fixed"). Only the phone icon moves out, into [LocationAContent]
+ * (red [CallPhoneIcon], same structural move as ActiveCall's).
+ *
  * Layout (State 3 indicator):
- *   a  — [CallPhoneIcon] in red (Lottie, res/raw/call_missed.json).
- *   b  — Missed-call count from the caller currently shown in Location C
- *          (e.g. "x3"). Hidden if count == 1.
- *   c  — Two-line text: caller name (top) / phone number (bottom).
- *          Cycles through unique callers at [MISSED_CALL_ROTATE_INTERVAL_MS].
+ *   location-a — [CallPhoneIcon] in red (Lottie, res/raw/call_missed.json).
+ *   Indicator  — missed-call count badge for the caller currently shown
+ *                (e.g. "x3", hidden if count == 1) + two-line text: caller
+ *                name (top) / phone number (bottom). Cycles through unique
+ *                callers at [MISSED_CALL_ROTATE_INTERVAL_MS].
  *
  * State 5 ([ControlsPanel]):
  *   Full chronological list of missed-call entries across all callers —
@@ -407,6 +492,14 @@ class MissedCallPhs3Handler(
 
     override val label: String = "MissedCall"
 
+    // ── LocationAContent — red phone icon, persists regardless of ───────────
+    // ── active-slot status (same pattern as Music's album art) ──────────────
+
+    @Composable
+    override fun LocationAContent() {
+        CallPhoneIcon(missed = true, size = 16.dp)
+    }
+
     @Composable
     override fun Indicator() {
         // Index into [missedCalls] that is currently displayed in location C.
@@ -424,12 +517,9 @@ class MissedCallPhs3Handler(
 
         Row(
             verticalAlignment = Alignment.CenterVertically,
-            horizontalArrangement = Arrangement.spacedBy(4.dp),
+            horizontalArrangement = Arrangement.spacedBy(CALL_BLOCK_GAP),
         ) {
-            // ── Location A: red phone icon ────────────────────────────────
-            CallPhoneIcon(missed = true, size = 16.dp)
-
-            // ── Location B: missed-call count badge for the current caller ─
+            // ── Missed-call count badge for the current caller ─────────────
             // Hidden when count is 1 (no badge needed for a single missed call).
             val badge = missedCountBadge(current.count)
             Text(
@@ -441,7 +531,7 @@ class MissedCallPhs3Handler(
                 modifier = Modifier.width(20.dp),
             )
 
-            // ── Location C: name (top) + number (bottom) ──────────────────
+            // ── Name (top) + number (bottom) ────────────────────────────────
             Column(
                 horizontalAlignment = Alignment.Start,
                 verticalArrangement = Arrangement.Center,

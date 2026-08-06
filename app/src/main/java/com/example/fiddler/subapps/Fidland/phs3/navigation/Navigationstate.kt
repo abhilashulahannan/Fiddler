@@ -91,3 +91,19 @@ val EmptySnapshot = NavigationSnapshot(
     steps = emptyList(),
     isActive = false,
 )
+
+/**
+ * §B7 Phase 4 — "nearing the turn" approach threshold, previously undefined
+ * (same gap-shape as Weather's high-wind/heatwave constants). A step's
+ * [NavStep.distanceMeters] at or below this promotes to the indefinite-hold
+ * Special Condition — see [com.example.fiddler.subapps.Fidland.phs3.navigation.NavigationPhs3Trigger].
+ *
+ * 150m chosen as the "prepare to turn" range most turn-by-turn nav UIs use
+ * for their own final heads-up cue — close enough that the turn is genuinely
+ * imminent, far enough to still be actionable (not simultaneous with the
+ * turn itself). Revisit if a different figure gets signed off — same
+ * "resolve before building rather than leave unbuilt" steer used elsewhere
+ * in this pass (see Weather's threshold constants for the same reasoning
+ * shape).
+ */
+const val NAV_APPROACH_THRESHOLD_METERS: Int = 150

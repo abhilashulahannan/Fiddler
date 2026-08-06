@@ -19,6 +19,8 @@ import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.unit.dp
 import com.example.fiddler.subapps.Fidland.manager.SegmentSwitcher
 import com.example.fiddler.subapps.Fidland.phs3.Phs3Handler
+import com.example.fiddler.subapps.Fidland.phs3.Phs3BlockPlacementEngine
+import com.example.fiddler.subapps.Fidland.phs3.Phs3Priority
 import com.example.fiddler.subapps.Fidland.service.DashboardTab
 import com.example.fiddler.subapps.Fidland.service.DashboardTabHost
 import kotlinx.coroutines.launch
@@ -78,6 +80,26 @@ fun FidlandRootUI(
     qualifiedPhs3Handlers: List<Phs3Handler> = emptyList(),
     isRotationLocked: Boolean = false,
     pillVisible: Boolean = true,
+    /**
+     * §B2 pass-through — forwarded straight to [FidlandIsland]. Pass
+     * `phs3Manager.blockPlacementEngine` from FidlandService. Null (default)
+     * matches every existing caller's current behavior unchanged.
+     */
+    blockPlacementEngine: Phs3BlockPlacementEngine? = null,
+    /**
+     * §B8 #13/#16 pass-through — forwarded straight to [FidlandIsland]'s
+     * `activeSchedulerPriority`. Pass `phs3Manager.scheduler.activePriority`
+     * from FidlandService. Null (default) matches every existing caller's
+     * current behavior unchanged (co-display never suppressed on this
+     * basis).
+     */
+    activeSchedulerPriority: Phs3Priority? = null,
+    /**
+     * §B7 pass-through — forwarded straight to [FidlandIsland]'s `netEnabled`.
+     * Pass the live `net_speed` toggle state from FidlandService. Default
+     * `false` matches every existing caller's current behavior unchanged.
+     */
+    netEnabled: Boolean = false,
     onSwipeDown: () -> Unit = {},
     onCollapse: () -> Unit,
 ) {
@@ -167,6 +189,9 @@ fun FidlandRootUI(
         activePhs3Handler     = activePhs3Handler,
         qualifiedHandlers     = qualifiedPhs3Handlers,
         isRotationLocked      = isRotationLocked,
+        blockPlacementEngine  = blockPlacementEngine,
+        activeSchedulerPriority = activeSchedulerPriority,
+        netEnabled            = netEnabled,
         modifier          = Modifier.graphicsLayer {
             translationX = shakeX.value
             translationY = slideY

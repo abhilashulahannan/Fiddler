@@ -290,3 +290,108 @@ fun FootballMatch.statusLabel(): String = when (status) {
  */
 fun FootballMatch.matchdayLabel(): String? =
     matchday?.let { "Matchday $it" }
+
+// ─────────────────────────────────────────────────────────────────────────────
+//  Status-transition model — kickoff / half-time / extra-time / full-time
+// ─────────────────────────────────────────────────────────────────────────────
+
+/**
+ * A [MatchStatus] transition worth surfacing as a Special-Condition promotion.
+ *
+ * Doc gap this resolves: status changes (kickoff, half-time, full-time)
+ * were previously invisible to the Special-Condition detector — only
+ * [MatchEvent]s (goals/cards/subs) were watched, per
+ * `FootballRepository.detectAndEmitNewEvents()`'s own doc comment
+ * ("status transitions aren't tracked as events at all"). Fouls and injuries
+ * are deliberately NOT modelled here — no source (FD/OLDB/AF) parses them,
+ * and AF's free-tier coverage of them is unconfirmed, so that part of the
+ * design doc's trigger list stays open rather than being guessed at.
+ *
+ * Extra time has no matching [MatchStatus] value (`LIVE` covers 90+ minutes)
+ * — resolved via a minute-based heuristic in
+ * `FootballRepository.detectStatusTransitions()`: [EXTRA_TIME] fires once
+ * per match, the first time its live minute crosses 90 while still `LIVE`.
+ * This is the "minute-based heuristic" option the design doc left open,
+ * chosen over adding a new [MatchStatus] value so no source-parsing code
+ * has to change.
+ */
+enum class MatchStatusTransition {
+    KICK_OFF,
+    HALF_TIME,
+    SECOND_HALF,
+    EXTRA_TIME,
+    FULL_TIME,
+}
+
+/** Plain status label — these transitions have no player to attribute, so the text is a fixed phrase (design doc's own suggestion, e.g. "Kick off"/"Full Time"). */
+fun MatchStatusTransition.label(): String = when (this) {
+    MatchStatusTransition.KICK_OFF    -> "Kick off"
+    MatchStatusTransition.HALF_TIME   -> "Half Time"
+    MatchStatusTransition.SECOND_HALF -> "Second Half"
+    MatchStatusTransition.EXTRA_TIME  -> "Extra Time"
+    MatchStatusTransition.FULL_TIME   -> "Full Time"
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+//  Special-Condition moment — unifies MatchEvents and status transitions into
+//  one orderable queue for FootballPhs3Trigger to drain.
+// ─────────────────────────────────────────────────────────────────────────────
+
+/**
+ * One thing worth a Special-Condition promotion: either a [MatchEvent]
+ * (goal/card/sub) or a [MatchStatusTransition] (kickoff/half-time/etc).
+ *
+ * Resolves the design doc's "does every qualifying new event promote, or
+ * just the single best one" open question: **every** new moment promotes —
+ * `FootballRepository` emits one of these per new event/transition (not
+ * just the single highest-priority pick per poll, which is still used
+ * as-is for the separate location-a icon flash), and `FootballPhs3Trigger`
+ * drains them one at a time from a FIFO queue, each getting its own dwell
+ * window rather than overwriting whichever fired last.
+ */
+sealed class FootballSpecialMoment {
+    abstract val match: FootballMatch
+
+    /** Ordering key when several moments land in the same poll — lower drains first. */
+    abstract fun priorityRank(): Int
+
+    /** Short display label — event: "Goal – Messi"; transition: "Kick off". */
+    abstract fun label(): String
+
+    data class Event(override val match: FootballMatch, val event: MatchEvent) : FootballSpecialMoment() {
+        override fun priorityRank(): Int = when (event.type) {
+            EventType.RED_CARD        -> 0
+            EventType.YELLOW_RED_CARD -> 1
+            EventType.GOAL             -> 2
+            EventType.YELLOW_CARD      -> 3
+            EventType.SUBSTITUTION     -> 4
+            EventType.OTHER            -> 5
+        }
+
+        override fun label(): String = buildString {
+            append(
+                when (event.type) {
+                    EventType.GOAL            -> "Goal"
+                    EventType.YELLOW_CARD     -> "Yellow Card"
+                    EventType.RED_CARD        -> "Red Card"
+                    EventType.YELLOW_RED_CARD -> "Red Card"
+                    EventType.SUBSTITUTION    -> "Substitution"
+                    EventType.OTHER           -> "Match Event"
+                }
+            )
+            event.playerName?.let { append(" – ").append(it) }
+        }
+    }
+
+    data class Status(override val match: FootballMatch, val transition: MatchStatusTransition) : FootballSpecialMoment() {
+        override fun priorityRank(): Int = when (transition) {
+            MatchStatusTransition.FULL_TIME   -> 6
+            MatchStatusTransition.EXTRA_TIME  -> 7
+            MatchStatusTransition.HALF_TIME   -> 8
+            MatchStatusTransition.SECOND_HALF -> 9
+            MatchStatusTransition.KICK_OFF    -> 10
+        }
+
+        override fun label(): String = transition.label()
+    }
+}

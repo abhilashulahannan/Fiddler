@@ -34,39 +34,55 @@ import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.example.fiddler.R
+import com.example.fiddler.subapps.Fidland.phs3.BlockAffinity
 import com.example.fiddler.subapps.Fidland.phs3.Phs3Handler
 import com.example.fiddler.ui.icons.MonoLottieIcon
 
 /**
  * Phs3 module — Timer / Stopwatch (Clock app).
  *
- * ── Location a (left of hole-punch) ──────────────────────────────────────────
- *   Mode icon — looping Lottie asset (res/raw/timer_countdown_stopwatch.json),
- *   shared by both TIMER and STOPWATCH since there's one combined asset. Opt-in
- *   via [hasLocationA] / [LocationAContent] — wired automatically by
- *   overlay_fidland_pill. Shifts to sit left of NetSpeedDisplay automatically
- *   when netspeed is on, same as the other left-zone modules.
+ * ── Placement (§B2/§B7) — Blocks (2) ──────────────────────────────────────────
+ * §B7 replaces the old design (mode glyph fixed in the location-a row via
+ * [Phs3Handler.hasLocationA], separate from a fused location-b/c Indicator)
+ * with 2 independently-placed §B2 blocks via [Phs3Handler.hasSecondaryBlock]
+ * — the same split Ring Mode proved first and Battery has since adopted (see
+ * their own class docs for the shared plumbing):
  *
- * ── Location b (immediate right of hole-punch) ────────────────────────────────
- *   The live time text — remaining time if TIMER, elapsed time if STOPWATCH.
+ *   • [Indicator] — the mode glyph, [BlockAffinity.DYNAMIC]. Timer is the
+ *     first entity whose identity icon isn't fixed-left (unlike Call's/
+ *     Music's/Alarm's icons) — this was blocked on §B2's placement system
+ *     actually existing, not a simple tweak, which is why it landed in
+ *     Phase 3 rather than earlier. In `BOTH_EXPANDED` the balancer can now
+ *     genuinely move the glyph into the left zone when that keeps the pill
+ *     narrower; `RIGHT_EXPANDED` has no left zone to move into, so there it
+ *     always stays put next to the content block, same as before this pass.
+ *   • [SecondaryIndicator] — the timer content, [BlockAffinity.RIGHT_ANCHOR].
+ *     TIMER mode renders live remaining time + [TimerProgressRing] as one
+ *     unit; STOPWATCH mode renders elapsed time alone, plus the last lap
+ *     (conditional — renders nothing if no laps yet). This is the old
+ *     fused Indicator's location-b/c content, now living in its own block.
  *
- * ── Location c (right of b) ──────────────────────────────────────────────────
- *   TIMER mode     → [TimerProgressRing], a circular ring draining as time
- *                     runs out (mirrors DownloadProgressRing's draw approach).
- *   STOPWATCH mode → last recorded lap time (blank if no laps yet).
+ * `hasLocationA` is no longer overridden (back to the interface default
+ * `false`) — the glyph's old fixed-left slot is retired in favor of its new
+ * DYNAMIC placement above.
  *
- * ── State 5 (ControlsPanel — long-press to open) ─────────────────────────────
- *   Header: label + mode glyph. Big time readout. TIMER shows a large
- *   progress ring; STOPWATCH shows a scrollable lap list. Pause/Resume +
- *   Cancel (TIMER) or Pause/Resume + Lap (STOPWATCH) buttons along the
- *   bottom — wired via the constructor lambdas below.
+ * ── State 5 (long-press to open) ──────────────────────────────────────────────
+ * **Retained** (`hasState5Content` stays at the interface default `true`) —
+ * dropping it would have removed the only place laps are browsable as a
+ * list, which was confirmed unacceptable. Header: label + mode glyph. Big
+ * time readout. TIMER shows a large progress ring; STOPWATCH shows a
+ * scrollable lap list. Pause/Resume + Cancel (TIMER) or Pause/Resume + Lap
+ * (STOPWATCH) buttons along the bottom — wired via the constructor lambdas
+ * below. These remain no-ops today (Clock app owns its own state, no
+ * control API), same as before this pass.
  *
  * ── Wiring ───────────────────────────────────────────────────────────────────
  * 1. Add a [TimerPhs3Trigger] in FidlandService.onCreate / onDestroy
  *    (see TimerPhs3trigger.kt).
  * 2. Feed [TimerRepository] from the Clock app's timer/stopwatch
  *    notifications (see TimerRepository kdoc for the sketch).
- * Location-a is wired automatically via [hasLocationA] / [LocationAContent].
+ * [Indicator] / [SecondaryIndicator] are wired automatically via
+ * [hasSecondaryBlock] — no manual zone wiring needed.
  */
 class TimerPhs3Handler(
     private val onPauseResume: () -> Unit = {},
@@ -76,29 +92,32 @@ class TimerPhs3Handler(
 
     override val label: String = "Timer"
 
-    // ── Location a — mode glyph ───────────────────────────────────────────────
+    override val hasSecondaryBlock: Boolean = true
+    override val blockAffinity: BlockAffinity = BlockAffinity.DYNAMIC
+    override val secondaryBlockAffinity: BlockAffinity = BlockAffinity.RIGHT_ANCHOR
 
-    override val hasLocationA: Boolean = true
+    // ── Indicator (primary block — mode glyph) ────────────────────────────────
 
     @Composable
-    override fun LocationAContent() {
+    override fun Indicator() {
         val snapshot by TimerRepository.flow.collectAsState()
         if (!snapshot.isActive) return
 
         TimerModeIcon(sizeDp = 14.dp)
     }
 
-    // ── Indicator — location b (time) + location c (ring / last lap) ─────────
+    // ── SecondaryIndicator (secondary block — time text + ring / last lap) ────
 
     @Composable
-    override fun Indicator() {
+    override fun SecondaryIndicator() {
         val snapshot by TimerRepository.flow.collectAsState()
 
         Row(
             verticalAlignment     = Alignment.CenterVertically,
             horizontalArrangement = Arrangement.spacedBy(6.dp),
+            modifier               = Modifier.padding(start = 6.dp),
         ) {
-            // Location b — live time text
+            // Live time text — remaining (TIMER) or elapsed (STOPWATCH)
             Text(
                 text       = if (snapshot.mode == TimerMode.TIMER) snapshot.remainingText else snapshot.elapsedText,
                 color      = if (snapshot.runState == TimerRunState.FINISHED) Color(0xFFEF5350) else Color.White,
@@ -107,7 +126,7 @@ class TimerPhs3Handler(
                 maxLines   = 1,
             )
 
-            // Location c
+            // TIMER: progress ring · STOPWATCH: last lap (conditional, blank if none yet)
             if (snapshot.mode == TimerMode.TIMER) {
                 TimerProgressRing(
                     progressFraction = snapshot.progressFraction,

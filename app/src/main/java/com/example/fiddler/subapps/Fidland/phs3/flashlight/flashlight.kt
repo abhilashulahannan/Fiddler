@@ -33,6 +33,7 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.example.fiddler.R
+import com.example.fiddler.subapps.Fidland.phs3.BlockAffinity
 import com.example.fiddler.subapps.Fidland.phs3.Phs3Handler
 import com.example.fiddler.ui.icons.MonoLottieIcon
 
@@ -64,6 +65,22 @@ import com.example.fiddler.ui.icons.MonoLottieIcon
  *                          should apply it (CameraManager torch-strength API /
  *                          vendor extension) and reconstruct this handler with
  *                          an updated [FlashlightInfo] so the meter reflects reality.
+ *
+ * ── Placement (§B2) ──────────────────────────────────────────────────────────
+ * Design doc §B7 confirms the icon is [BlockAffinity.DYNAMIC] — unlike
+ * Camera's rule-based side, Flashlight's icon genuinely competes for the
+ * lighter side via §B2's width balancer.
+ *
+ * ── Co-display ──────────────────────────────────────────────────────────────
+ * [coDisplay] = true, reusing Camera's additive mechanic — renders alongside
+ * whatever else holds the slot rather than displacing it. Declaration only,
+ * same as Camera's: the rendering side isn't built yet. Flashlight's case is
+ * the sharper one of the two (§B8 #11) — its icon is [BlockAffinity.DYNAMIC]
+ * *and* co-displaying, so once rendering exists it also has to answer
+ * whether a co-displaying dynamic block competes on equal footing with the
+ * co-displayed entity's own dynamic blocks, or gets priority/ordering over
+ * them. Not resolved by setting this flag; left for whoever builds the
+ * rendering/ordering side.
  */
 class FlashlightPhs3Handler(
     private val flashlightInfo: FlashlightInfo = FlashlightInfo(),
@@ -71,6 +88,10 @@ class FlashlightPhs3Handler(
 ) : Phs3Handler {
 
     override val label: String = "Flashlight"
+
+    override val blockAffinity: BlockAffinity = BlockAffinity.DYNAMIC
+
+    override val coDisplay: Boolean = true
 
     // ── Location b — State 3 Indicator ──────────────────────────────────────
 

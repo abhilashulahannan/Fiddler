@@ -4,7 +4,9 @@ import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.delay
+import kotlinx.coroutines.flow.MutableSharedFlow
 import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.SharedFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
@@ -108,6 +110,17 @@ class FootballRepository(
     private val _flashEventFlow = MutableStateFlow<FlashEvent?>(null)
     val flashEventFlow: StateFlow<FlashEvent?> = _flashEventFlow
 
+    /**
+     * Emits one [FootballSpecialMoment] per new match event AND per detected
+     * status transition — every one of them, not just the single
+     * highest-priority pick per poll (that pick still drives [flashEventFlow]
+     * separately, unchanged). Consumed by `FootballPhs3Trigger` to drive
+     * Special-Condition priority-scheduler promotions. See
+     * [FootballSpecialMoment]'s class doc for the design-doc gap this closes.
+     */
+    private val _specialMomentFlow = MutableSharedFlow<FootballSpecialMoment>(extraBufferCapacity = 32)
+    val specialMomentFlow: SharedFlow<FootballSpecialMoment> = _specialMomentFlow
+
     /** Today's AF call plan — exposed for debug/logging from the trigger. */
     private val _dailyPlanFlow = MutableStateFlow<FootballScheduleEngine.DailyPollPlan?>(null)
     val dailyPlanFlow: StateFlow<FootballScheduleEngine.DailyPollPlan?> = _dailyPlanFlow
@@ -120,6 +133,21 @@ class FootballRepository(
 
     /** Event IDs we have already notified about — never fire the same event twice. */
     private val seenEventIds = mutableSetOf<String>()
+
+    /**
+     * Last known [MatchStatus] per match, keyed by [FootballMatch.fixtureKey]
+     * — NOT [FootballMatch.id], which can switch between "fd_…"/"oldb_…"/
+     * "af_…" across polls as merge precedence shifts which source last wrote
+     * the match (see [mergeOnto]); fixtureKey is the one source-independent,
+     * stable identity for a real-world fixture. An absent entry means "not
+     * seen yet" — no transition fires for a match's first-ever observation
+     * (avoids a false "kickoff" for a match that was already LIVE before
+     * this process started polling).
+     */
+    private val lastStatusByFixture = mutableMapOf<String, MatchStatus>()
+
+    /** Fixture keys that have already fired their one-shot extra-time moment — see [MatchStatusTransition]. */
+    private val extraTimeFiredFixtures = mutableSetOf<String>()
 
     /** Latest parsed snapshots from each source — merged on every update. */
     private var latestFdMatches: List<FootballMatch>   = emptyList()
@@ -456,12 +484,17 @@ class FootballRepository(
         var best: MatchEvent? = null
         var bestPriority = Int.MAX_VALUE
 
+        // Every new event, not just the single best pick below — feeds the
+        // Special-Condition queue (see [FootballSpecialMoment]'s class doc).
+        val newMoments = mutableListOf<FootballSpecialMoment>()
+
         for (match in matches) {
             for (event in match.events) {
                 if (event.id in seenEventIds) continue
                 seenEventIds += event.id
                 val p = priority.indexOf(event.type).let { if (it < 0) 99 else it }
                 if (p < bestPriority) { best = event; bestPriority = p }
+                newMoments += FootballSpecialMoment.Event(match, event)
             }
         }
 
@@ -469,6 +502,58 @@ class FootballRepository(
             android.util.Log.d(TAG, "Flash event: ${best.type} — ${best.playerName} (${best.teamName})")
             _flashEventFlow.value = FlashEvent(type = best.type)
         }
+
+        newMoments += detectStatusTransitions(matches)
+        if (newMoments.isNotEmpty()) {
+            newMoments.sortBy { it.priorityRank() }
+            for (moment in newMoments) _specialMomentFlow.tryEmit(moment)
+        }
+    }
+
+    /**
+     * Watches [MatchStatus] changes plus the live minute to surface
+     * kickoff/half-time/second-half/full-time/extra-time as
+     * [FootballSpecialMoment.Status] moments — the design doc's "status
+     * transitions aren't tracked as events at all" gap. See
+     * [MatchStatusTransition]'s class doc for the extra-time heuristic and
+     * why fouls/injuries are intentionally not modelled here.
+     */
+    private fun detectStatusTransitions(matches: List<FootballMatch>): List<FootballSpecialMoment> {
+        val moments = mutableListOf<FootballSpecialMoment>()
+
+        for (match in matches) {
+            val key = match.fixtureKey()
+            val prev = lastStatusByFixture[key]
+            lastStatusByFixture[key] = match.status
+
+            if (prev != null && prev != match.status) {
+                val transition = when {
+                    prev == MatchStatus.SCHEDULED && match.status == MatchStatus.LIVE ->
+                        MatchStatusTransition.KICK_OFF
+                    prev == MatchStatus.LIVE && match.status == MatchStatus.HALF_TIME ->
+                        MatchStatusTransition.HALF_TIME
+                    prev == MatchStatus.HALF_TIME && match.status == MatchStatus.LIVE ->
+                        MatchStatusTransition.SECOND_HALF
+                    match.status == MatchStatus.FINISHED && prev != MatchStatus.FINISHED ->
+                        MatchStatusTransition.FULL_TIME
+                    else -> null
+                }
+                if (transition != null) moments += FootballSpecialMoment.Status(match, transition)
+            }
+
+            // Extra time: no MatchStatus value for it (LIVE covers 90+ min) —
+            // one-shot per fixture, fires the first time the live minute
+            // crosses 90 while still LIVE.
+            if (match.status == MatchStatus.LIVE &&
+                (match.minute ?: 0) > 90 &&
+                key !in extraTimeFiredFixtures
+            ) {
+                extraTimeFiredFixtures += key
+                moments += FootballSpecialMoment.Status(match, MatchStatusTransition.EXTRA_TIME)
+            }
+        }
+
+        return moments
     }
 
     // =========================================================================

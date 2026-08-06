@@ -48,6 +48,16 @@ import androidx.compose.ui.unit.dp
  * rather than as separate text alongside the icon, so the indicator stays
  * a single compact glyph instead of an icon-plus-label pair.
  *
+ * ── §B7 role (this pass) ─────────────────────────────────────────────────────
+ * Unchanged functionally. §B7's Blocks spec describes this as the primary
+ * (dynamic) block of a 2-block layout (icon + multi-line text) replacing
+ * today's fused single-glyph Indicator — see [BatteryPhs3Handler]'s class
+ * doc for how that's assembled: as of the `hasSecondaryBlock` migration,
+ * this composable and [BatteryDetailText] are two real, independently
+ * measured/placed §B2 blocks (icon = [BlockAffinity.DYNAMIC], text =
+ * [BlockAffinity.RIGHT_ANCHOR]) rather than one fused Row — same pattern
+ * Ring Mode proved first, still pending for Camera/Flashlight.
+ *
  * ── Fill + label ──────────────────────────────────────────────────────────
  * A solid inner bar fills left→right to [level] percent, inset from the
  * outline like a real battery gauge. The percentage text sits centred over
