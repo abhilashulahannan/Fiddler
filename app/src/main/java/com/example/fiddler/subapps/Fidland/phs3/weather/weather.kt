@@ -28,6 +28,7 @@ import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.example.fiddler.R
+import com.example.fiddler.subapps.Fidland.phs3.BlockAffinity
 import com.example.fiddler.subapps.Fidland.phs3.Phs3Handler
 import com.example.fiddler.ui.icons.MonoLottieIcon
 
@@ -37,14 +38,22 @@ import com.example.fiddler.ui.icons.MonoLottieIcon
  * Always active — [WeatherPhs3Trigger] registers this handler on service start
  * and never deactivates it. Data flows from [WeatherRepository.flow].
  *
- * ── Location A (left zone, 22 dp slot) ───────────────────────────────────────
- *   Current condition — looping Lottie icon (see [WeatherCondition.toRawRes]).
- *   Keeps the left zone informative even when another handler owns the right zone.
+ * ── Placement (§B2/§B7) — Blocks (2) ──────────────────────────────────────────
+ * §B7 replaces the old location-a icon + fused two-line Indicator with 2
+ * independently-placed §B2 blocks via [Phs3Handler.hasSecondaryBlock] — the
+ * same split Ring Mode proved first, Battery has since adopted, and Timer
+ * just adopted too (Weather is the second entity, after Timer, to move its
+ * icon off fixed-left):
  *
- * ── Indicator (right zone, locations B + C) ───────────────────────────────────
- *   Two-line layout matching the music handler's song/artist pattern:
- *     Line 1 (white, bold):  condition icon + temperature,  e.g. [icon] 32°
- *     Line 2 (grey):         feels-like,            e.g. "feels 29°"
+ *   • [Indicator] — icon + temperature, [BlockAffinity.DYNAMIC]. Icon and
+ *     temperature stay paired as one block (not split further) since
+ *     they're read as a single glanceable unit.
+ *   • [SecondaryIndicator] — feels-like text alone, [BlockAffinity.RIGHT_ANCHOR]
+ *     (unchanged text, now its own block instead of the second line of a
+ *     fused Column).
+ *
+ * `hasLocationA` is no longer overridden (back to the interface default
+ * `false`) — no location-a participation once the icon is dynamic.
  *
  * ── State 5 (full-width strip, STATE5_HEIGHT tall) ───────────────────────────
  *   Row 1 — hero + stats:
@@ -56,6 +65,7 @@ import com.example.fiddler.ui.icons.MonoLottieIcon
  *   Row 3 — sarcastic pun:
  *     Italic, dimmed — e.g. "Great day to touch grass. You won't, but it's there."
  *     Rotates randomly every 15-minute refresh cycle (see [WeatherCondition.pickSarcasm]).
+ *   Unchanged by this pass — confirmed good as-is.
  *
  * ── Loading state ─────────────────────────────────────────────────────────────
  *   Before the first fetch completes, [WeatherRepository.flow] emits null.
@@ -67,52 +77,46 @@ class WeatherPhs3Handler : Phs3Handler {
 
     override val label: String = "Weather"
 
-    // Always show the condition icon in the left-zone location-a slot.
-    override val hasLocationA: Boolean = true
-    override val locationAPriority: Int = 90  // after music (0), before most others (100)
+    override val hasSecondaryBlock: Boolean = true
+    override val blockAffinity: BlockAffinity = BlockAffinity.DYNAMIC
+    override val secondaryBlockAffinity: BlockAffinity = BlockAffinity.RIGHT_ANCHOR
 
-    // ── Location A — condition icon ──────────────────────────────────────────
-
-    @Composable
-    override fun LocationAContent() {
-        val snapshot by WeatherRepository.flow.collectAsState()
-        WeatherIcon(condition = snapshot?.condition, size = 14.dp)
-    }
-
-    // ── Indicator — icon + temp / feels-like ─────────────────────────────────
+    // ── Indicator (primary block — icon + temperature) ──────────────────────
 
     @Composable
     override fun Indicator() {
         val snapshot by WeatherRepository.flow.collectAsState()
 
-        Column(
-            horizontalAlignment = Alignment.Start,
-            verticalArrangement = Arrangement.Center,
-            modifier = Modifier.widthIn(max = 90.dp),
-        ) {
-            // Line 1: condition icon + temperature
-            Row(verticalAlignment = Alignment.CenterVertically) {
-                WeatherIcon(condition = snapshot?.condition, size = 13.dp)
-                Spacer(modifier = Modifier.width(3.dp))
-                Text(
-                    text       = if (snapshot != null) "${snapshot!!.tempC}°" else "· · ·",
-                    color      = Color.White,
-                    fontSize   = 11.sp,
-                    fontWeight = FontWeight.Bold,
-                    maxLines   = 1,
-                    overflow   = TextOverflow.Ellipsis,
-                )
-            }
-            // Line 2: feels-like
+        Row(verticalAlignment = Alignment.CenterVertically) {
+            WeatherIcon(condition = snapshot?.condition, size = 13.dp)
+            Spacer(modifier = Modifier.width(3.dp))
             Text(
-                text     = if (snapshot != null) "feels ${snapshot!!.feelsLikeC}°" else "",
-                color    = Color(0xFFAAAAAA),
-                fontSize = 9.sp,
-                maxLines = 1,
-                overflow = TextOverflow.Ellipsis,
-                modifier = Modifier.padding(top = 1.dp),
+                text       = if (snapshot != null) "${snapshot!!.tempC}°" else "· · ·",
+                color      = Color.White,
+                fontSize   = 11.sp,
+                fontWeight = FontWeight.Bold,
+                maxLines   = 1,
+                overflow   = TextOverflow.Ellipsis,
             )
         }
+    }
+
+    // ── SecondaryIndicator (secondary block — feels-like) ────────────────────
+
+    @Composable
+    override fun SecondaryIndicator() {
+        val snapshot by WeatherRepository.flow.collectAsState()
+
+        Text(
+            text     = if (snapshot != null) "feels ${snapshot!!.feelsLikeC}°" else "",
+            color    = Color(0xFFAAAAAA),
+            fontSize = 9.sp,
+            maxLines = 1,
+            overflow = TextOverflow.Ellipsis,
+            modifier = Modifier
+                .widthIn(max = 70.dp)
+                .padding(start = 6.dp),
+        )
     }
 
     // ── State 5 ───────────────────────────────────────────────────────────────

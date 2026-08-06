@@ -28,6 +28,7 @@ import com.example.fiddler.subapps.Fidland.music.YTMusicListener
 import com.example.fiddler.subapps.Fidland.phs3.Phs3Handler
 import com.example.fiddler.subapps.Fidland.phs3.Phs3Manager
 import com.example.fiddler.subapps.Fidland.phs3.alarm.AlarmPhs3Trigger
+import com.example.fiddler.subapps.Fidland.phs3.battery.BatteryPhs3Trigger
 import com.example.fiddler.subapps.Fidland.phs3.calender.CalendarPhs3Trigger
 import com.example.fiddler.subapps.Fidland.phs3.camera.CameraPhs3Trigger
 import com.example.fiddler.subapps.Fidland.phs3.download.DownloadPhs3Trigger
@@ -98,6 +99,8 @@ class FidlandService : Service(), LifecycleOwner, SavedStateRegistryOwner {
 
     private lateinit var cameraTrigger: CameraPhs3Trigger
 
+    private lateinit var batteryTrigger: BatteryPhs3Trigger
+
     private lateinit var timerTrigger: TimerPhs3Trigger
     private lateinit var calendarTrigger: CalendarPhs3Trigger
 
@@ -122,6 +125,18 @@ class FidlandService : Service(), LifecycleOwner, SavedStateRegistryOwner {
     private val isExpanded        = mutableStateOf(false)
     private val pillVisible       = mutableStateOf(true)   // drives slide-out/in animation
     private var gestureStartPhase = PillPhase.CIRCLE
+
+    /**
+     * Observable mirror of `prefs.getBoolean("net_speed", false)`, forwarded to
+     * [FidlandRootUI] → [FidlandIsland]'s `netEnabled` param, which gates the
+     * NET_SPEED block per §B7's NetSpeed spec ("shown continuously/unconditionally
+     * when on," never present when off). There's no SharedPreferences change
+     * listener in this service, so — same as the existing compact-phase logic
+     * below — this is kept in sync at each point that already re-reads the pref
+     * (init, active-handler changes, collapse-to-compact, initial phase resolve)
+     * rather than polled independently.
+     */
+    private val netSpeedEnabled   = mutableStateOf(false)
 
     private var touchBoxViewRef: ComposeView? = null
 
@@ -167,6 +182,7 @@ class FidlandService : Service(), LifecycleOwner, SavedStateRegistryOwner {
         windowManager = (accessibilityContext ?: this)
             .getSystemService(Context.WINDOW_SERVICE) as WindowManager
         prefs = getSharedPreferences("fidland_prefs", Context.MODE_PRIVATE)
+        netSpeedEnabled.value = prefs.getBoolean("net_speed", false)
 
         playlistManager      = PlaylistTopicManager(serviceScope)
         segmentSwitcher      = SegmentSwitcher(
@@ -247,6 +263,14 @@ class FidlandService : Service(), LifecycleOwner, SavedStateRegistryOwner {
         cameraTrigger = CameraPhs3Trigger(applicationContext, this)
         cameraTrigger.start()
 
+        // ── Battery trigger ────────────────────────────────────────────────────
+        // Always on, like camera/ringmode/timer/weather/calendar — reading
+        // ACTION_BATTERY_CHANGED needs no runtime permission, so no pref gate.
+        // First entity wired to SurfacePolicy.EVENT_DRIVEN + Phs3Scheduler — see
+        // BatteryPhs3Trigger's kdoc.
+        batteryTrigger = BatteryPhs3Trigger(applicationContext, serviceScope, this)
+        batteryTrigger.start()
+
         timerTrigger = TimerPhs3Trigger(serviceScope, phs3Manager)
         timerTrigger.start()
 
@@ -265,6 +289,7 @@ class FidlandService : Service(), LifecycleOwner, SavedStateRegistryOwner {
             phs3Manager.activeHandler.collect { handler ->
                 activePhs3Handler.value = handler
                 val netEnabled = prefs.getBoolean("net_speed", false)
+                netSpeedEnabled.value = netEnabled
                 // Only update the compact pill phase. Never override STATE5 or
                 // DASHBOARD from here — those are driven by gesture events.
                 if (pillPhase.value != PillPhase.STATE5 &&
@@ -297,6 +322,20 @@ class FidlandService : Service(), LifecycleOwner, SavedStateRegistryOwner {
                     activePhs3Handler     = activePhs3Handler.value,
                     qualifiedPhs3Handlers = qualifiedPhs3Handlers.value,
                     isRotationLocked  = phs3Manager.lockedState.collectAsState().value,
+                    // §B2 — feeds real measured widths into the placement
+                    // engine so it's live end-to-end (see overlay_fidland_pill.kt's
+                    // "§B2 WIRING" note); no handler declares DYNAMIC yet, so
+                    // this has no visible effect until one does.
+                    blockPlacementEngine = phs3Manager.blockPlacementEngine,
+                    // §B8 #13/#16 — lets co-display rendering detect Call's
+                    // exclusive indefinite-hold Special Condition and
+                    // suppress co-display while it's active. Collected here
+                    // (not hoisted to a top-level var) since nothing else in
+                    // this service currently needs the live bid.
+                    activeSchedulerPriority = phs3Manager.scheduler.activePriority.collectAsState().value,
+                    // Real toggle state — see netSpeedEnabled kdoc above. Gates the
+                    // NET_SPEED block in FidlandIsland via FidlandRootUI's pass-through.
+                    netEnabled        = netSpeedEnabled.value,
                     pillVisible       = pillVisible.value,
                     // Swipe-down on the pill itself (inside State 4) still works
                     // via DashboardTabHost's internal gesture — not needed here.
@@ -443,6 +482,7 @@ class FidlandService : Service(), LifecycleOwner, SavedStateRegistryOwner {
         isExpanded.value = false
         // Resolve which compact phase is correct right now
         val netEnabled = prefs.getBoolean("net_speed", false)
+        netSpeedEnabled.value = netEnabled
         val hasPhs3    = activePhs3Handler.value != null
         val targetPhase = when {
             netEnabled && hasPhs3 -> PillPhase.BOTH_EXPANDED
@@ -480,6 +520,7 @@ class FidlandService : Service(), LifecycleOwner, SavedStateRegistryOwner {
 
     private fun resolveInitialPhase(): PillPhase {
         val netEnabled = prefs.getBoolean("net_speed", false)
+        netSpeedEnabled.value = netEnabled
         return if (netEnabled) PillPhase.LEFT_EXPANDED else PillPhase.CIRCLE
     }
 
@@ -506,6 +547,7 @@ class FidlandService : Service(), LifecycleOwner, SavedStateRegistryOwner {
         if (::whatsAppSource.isInitialized) NotificationListenerService.whatsAppSource = null
         if (::ringmodeTrigger.isInitialized) ringmodeTrigger.stop()
         if (::cameraTrigger.isInitialized) cameraTrigger.stop()
+        if (::batteryTrigger.isInitialized) batteryTrigger.stop()
         if (::flashlightTrigger.isInitialized)  flashlightTrigger.stop()
         if (::navigationTrigger.isInitialized)  navigationTrigger.stop()
         if (::alarmTrigger.isInitialized)       alarmTrigger.stop()

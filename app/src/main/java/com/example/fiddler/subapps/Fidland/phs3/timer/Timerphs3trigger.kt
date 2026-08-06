@@ -3,6 +3,8 @@ package com.example.fiddler.subapps.Fidland.phs3.timer
 import com.example.fiddler.subapps.Fidland.NotificationListenerService
 import com.example.fiddler.subapps.Fidland.phs3.Phs3DebugLog
 import com.example.fiddler.subapps.Fidland.phs3.Phs3Manager
+import com.example.fiddler.subapps.Fidland.phs3.Phs3Priority
+import com.example.fiddler.subapps.Fidland.phs3.PriorityClass
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.launch
@@ -50,6 +52,20 @@ import kotlinx.coroutines.launch
  *       downloadSource?.onNotificationRemoved(sbn)
  *       ...
  *   }
+ *
+ * ── §B7 wiring (this pass) — Timer's scheduler bid ───────────────────────────
+ * Class: home Submissive/10, conditional Dominant/65. No Special Condition
+ * (no natural transition-worthy event) — a plain persists-until-cleared
+ * Dominant bid, same axis as Call's MissedCall escalation, not a timed
+ * promotion, so no `holdMs`/`fallback`.
+ *
+ * **Home Submissive/10 is deliberately not submitted anywhere here** — same
+ * reasoning as Call's home bid (see [com.example.fiddler.subapps.Fidland
+ * .phs3.call.CallPhs3Trigger]'s class doc): [TimerPhs3Handler] only ever
+ * exists while [TimerRepository.flow]'s snapshot is active, i.e. already at
+ * the Dominant/65 bid below, and is fully unregistered the instant it isn't
+ * — there's no qualified-but-idle state for a Submissive bid to hold *in*.
+ * Timer is the third entity in this shape, after Call and Alarm.
  */
 class TimerPhs3Trigger(
     private val scope: CoroutineScope,
@@ -82,7 +98,19 @@ class TimerPhs3Trigger(
                 )
                 if (snapshot.isActive) {
                     manager.register(handler)
+                    // §B7 — persists-until-cleared conditional Dominant,
+                    // sub-score 65, same axis as Call's MissedCall
+                    // escalation (not a timed promotion, so no
+                    // holdMs/fallback).
+                    manager.scheduler.submit(
+                        Phs3Priority(
+                            handler       = handler,
+                            priorityClass = PriorityClass.DOMINANT,
+                            subScore      = 65,
+                        )
+                    )
                 } else {
+                    manager.scheduler.withdraw(handler.label)
                     manager.unregister(handler.label)
                 }
             }
@@ -94,6 +122,7 @@ class TimerPhs3Trigger(
         NotificationListenerService.timerNotificationSource = null
         watchJob?.cancel()
         watchJob = null
+        manager.scheduler.withdraw(handler.label)
         manager.unregister(handler.label)
         TimerRepository.onEnded()
     }

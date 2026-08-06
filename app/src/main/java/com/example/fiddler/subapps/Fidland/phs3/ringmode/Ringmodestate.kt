@@ -83,6 +83,11 @@ enum class DndPolicy {
  * @param dndPolicy     Only meaningful when [mode] == [RingMode.DND].
  * @param ringerVolume  Current ringer volume level (0 .. [ringerMaxVolume]).
  * @param ringerMaxVolume  Max ringer volume on this device (usually 7 or 15).
+ *
+ * §B7: `(mode, dndPolicy)` together are what [RingmodePhs3Trigger] diffs
+ * against the previous push to detect a "ring-mode changed" event for the
+ * Special-Condition promotion — see its class doc for the still-open
+ * question of whether a DND-sub-policy-only change should count.
  */
 data class RingmodeSnapshot(
     val mode: RingMode,

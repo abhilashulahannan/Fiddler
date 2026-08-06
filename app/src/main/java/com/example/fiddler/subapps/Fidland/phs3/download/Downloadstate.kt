@@ -28,8 +28,25 @@ enum class DownloadNetworkType {
  * @param totalBytes      Total expected bytes. Null if the server didn't
  *                         send Content-Length (indeterminate progress).
  * @param etaMs           Estimated milliseconds remaining, or null if unknown.
- * @param networkType     The connection the download is using, for the icon.
+ *                         §B7 Phase 4: real sources leave this null (see
+ *                         [DownloadInfo.derivedEtaMs] for the actual State5
+ *                         derivation) — kept here for FileObserver's
+ *                         completion-flash `0L`.
+ * @param networkType     Carried for source compatibility only — §B7 Phase 4
+ *                         retires the network-type icon path entirely (every
+ *                         source has always reported [DownloadNetworkType
+ *                         .UNKNOWN] here; no source was ever fixed to report
+ *                         real values, and the design doc resolved this as
+ *                         "not a fix-first blocker" — location-a now shows a
+ *                         generic download glyph instead, see
+ *                         [DownloadPhs3Handler]). Unused by any renderer.
  * @param speedBps        Current download speed in bytes/second, or null.
+ * @param packageName     §B7 Phase 4 — the source app's package, when known.
+ *                         Only [NotificationDownloadSource] can populate this
+ *                         (via `sbn.packageName`); the other 3 sources have
+ *                         no attribution path, so this is null for them —
+ *                         see [DownloadPhs3Handler.State5Content]'s
+ *                         "unknown app" fallback.
  */
 data class DownloadInfo(
     val title: String,
@@ -38,7 +55,8 @@ data class DownloadInfo(
     val totalBytes: Long?,
     val etaMs: Long?,
     val networkType: DownloadNetworkType = DownloadNetworkType.UNKNOWN,
-    val speedBps: Long? = null
+    val speedBps: Long? = null,
+    val packageName: String? = null,
 )
 
 // ── Formatting helpers ────────────────────────────────────────────────────────
@@ -92,3 +110,42 @@ fun formatSpeed(speedBps: Long?): String? {
  * Returns true while the download is still in progress (not yet complete).
  */
 fun DownloadInfo.isActive(): Boolean = progressFraction < 1f
+
+/**
+ * §B7 Phase 4 — State5's real ETA derivation, `(totalBytes -
+ * bytesDownloaded) / speedBps`, resolving the doc's flag ("needs real
+ * derivation... feasible when both inputs exist, not derivable for the
+ * Traffic-only fallback"). Returns null whenever either input is missing —
+ * that's exactly the Traffic-only case ([totalBytes] is always null there —
+ * see [TrafficStatsDownloadSource]) and any indeterminate-progress entry.
+ * Distinct from [DownloadInfo.etaMs], which no real source ever populates
+ * except FileObserver's completion-flash `0L`.
+ */
+fun DownloadInfo.derivedEtaMs(): Long? {
+    val total = totalBytes ?: return null
+    val speed = speedBps?.takeIf { it > 0 } ?: return null
+    val remaining = (total - bytesDownloaded).coerceAtLeast(0L)
+    return (remaining * 1000L) / speed
+}
+
+/**
+ * §B7 Phase 4 State5 "which-app" block — resolves [packageName] to an
+ * installed app's display label (e.g. "Chrome"), or null if unresolvable.
+ * Only ever non-null for [NotificationDownloadSource] entries — see
+ * [DownloadInfo.packageName]'s doc. Callers show an "Unknown app" fallback
+ * when this returns null, per the doc's adopted resolution of that open
+ * question (a field-only-when-available reading was the other option
+ * considered — an explicit fallback string reads better in State5's fixed
+ * layout than a block that sometimes silently vanishes).
+ */
+fun DownloadInfo.resolveAppLabel(context: android.content.Context): String? {
+    val pkg = packageName ?: return null
+    return try {
+        context.packageManager
+            .getApplicationInfo(pkg, 0)
+            .loadLabel(context.packageManager)
+            .toString()
+    } catch (_: Exception) {
+        null
+    }
+}

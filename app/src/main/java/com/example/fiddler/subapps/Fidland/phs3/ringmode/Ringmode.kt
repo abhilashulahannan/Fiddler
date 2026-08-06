@@ -3,6 +3,7 @@ package com.example.fiddler.subapps.Fidland.phs3.ringmode
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
@@ -23,6 +24,7 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import com.example.fiddler.subapps.Fidland.phs3.BlockAffinity
 import com.example.fiddler.subapps.Fidland.phs3.Phs3Handler
 import com.example.fiddler.ui.icons.LottieIconColors
 import com.example.fiddler.ui.icons.MonoLottieIcon
@@ -49,6 +51,22 @@ import com.example.fiddler.ui.icons.MonoLottieIcon
  * @param onModeSelected Called with the chosen [RingMode] when the user taps
  *                       a button in State 5 or cycles via the Indicator.
  *                       The trigger applies it and reconstructs this handler.
+ *
+ * ── Placement (§B2) ──────────────────────────────────────────────────────────
+ * Splits into two independently-placed blocks via [Phs3Handler.hasSecondaryBlock]:
+ * [Indicator] carries the mode icon ([BlockAffinity.DYNAMIC] — genuinely new:
+ * unlike Timer's/Weather's icon *relocations*, this icon previously had zero
+ * independent placement), [SecondaryIndicator] carries the text label
+ * ([BlockAffinity.RIGHT_ANCHOR], matching every handler's pre-§B2 default).
+ * Ring Mode is the first handler to use this split — see
+ * [Phs3Handler.hasSecondaryBlock]'s doc for the shared plumbing and its
+ * scope note (declaration + measurement wired for real; cross-zone
+ * placement of a DYNAMIC block is still a separate, deferred step).
+ *
+ * Tap-to-cycle target: both blocks stay tappable (same [tapToCycle]
+ * behavior on the icon and the text), so splitting the Row into two
+ * independently-placed composables doesn't shrink the tap target a user
+ * relies on today.
  */
 class VolumePhs3Handler(
     private val snapshot: RingmodeSnapshot,
@@ -57,45 +75,55 @@ class VolumePhs3Handler(
 
     override val label: String = "Volume"
 
+    override val hasSecondaryBlock: Boolean = true
+    override val blockAffinity: BlockAffinity = BlockAffinity.DYNAMIC
+    override val secondaryBlockAffinity: BlockAffinity = BlockAffinity.RIGHT_ANCHOR
+
     // Header row + divider + switcher row (now with 30.dp icons) need a bit
     // more vertical room than the shared IslandConfig.STATE5_HEIGHT default,
     // and the DND detail row needs even more when it's showing.
     override val state5HeightOverride: Dp =
         if (snapshot.mode == RingMode.DND) 160.dp else 128.dp
 
-    // ── Indicator ──────────────────────────────────────────────────────────────
+    /** Tap cycles through Ring → Vibrate → Silent → Ring. DND is excluded
+     *  (requires a separate permission grant) — shared by both blocks so
+     *  the split doesn't shrink the tap target. */
+    private fun tapToCycle() {
+        val current = snapshot.mode
+        val cycleFrom = if (current == RingMode.DND) RingMode.RING else current
+        val nextIndex = (RING_TAP_CYCLE.indexOf(cycleFrom) + 1) % RING_TAP_CYCLE.size
+        onModeSelected(RING_TAP_CYCLE[nextIndex])
+    }
+
+    // ── Indicator (primary block — icon) ────────────────────────────────────────
 
     @Composable
     override fun Indicator() {
-        Row(
-            verticalAlignment = Alignment.CenterVertically,
-            horizontalArrangement = Arrangement.spacedBy(4.dp),
-            modifier = Modifier.clickable {
-                // Tap cycles through Ring → Vibrate → Silent → Ring.
-                // DND is excluded (requires a separate permission grant).
-                val current = snapshot.mode
-                val cycleFrom = if (current == RingMode.DND) RingMode.RING else current
-                val nextIndex = (RING_TAP_CYCLE.indexOf(cycleFrom) + 1) % RING_TAP_CYCLE.size
-                onModeSelected(RING_TAP_CYCLE[nextIndex])
-            }
-        ) {
-            // Mode icon
+        Box(modifier = Modifier.clickable { tapToCycle() }) {
             RingModeIcon(mode = snapshot.mode, size = 13.dp)
-
-            // Label — for DND show the policy sub-type
-            val label = if (snapshot.mode == RingMode.DND) {
-                snapshot.dndPolicy.displayName
-            } else {
-                snapshot.mode.displayName
-            }
-            Text(
-                text = label,
-                color = indicatorTextColor(snapshot.mode),
-                fontSize = 9.sp,
-                fontWeight = FontWeight.Medium,
-                maxLines = 1,
-            )
         }
+    }
+
+    // ── SecondaryIndicator (secondary block — text) ─────────────────────────────
+
+    @Composable
+    override fun SecondaryIndicator() {
+        // Label — for DND show the policy sub-type
+        val label = if (snapshot.mode == RingMode.DND) {
+            snapshot.dndPolicy.displayName
+        } else {
+            snapshot.mode.displayName
+        }
+        Text(
+            text = label,
+            color = indicatorTextColor(snapshot.mode),
+            fontSize = 9.sp,
+            fontWeight = FontWeight.Medium,
+            maxLines = 1,
+            modifier = Modifier
+                .clickable { tapToCycle() }
+                .padding(start = 4.dp),
+        )
     }
 
     // ── State 5 ────────────────────────────────────────────────────────────────

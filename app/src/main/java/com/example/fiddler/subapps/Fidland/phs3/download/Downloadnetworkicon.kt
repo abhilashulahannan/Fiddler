@@ -18,6 +18,14 @@ import androidx.compose.ui.unit.dp
 /**
  * Phs3 Download — Location 1 icon: current network type.
  *
+ * ⚠ Retired (§B7 Phase 4) — no longer called from [DownloadPhs3Handler].
+ * Every [DownloadSource] has always hardcoded [DownloadNetworkType.UNKNOWN],
+ * so this could only ever render its dim fallback dot in practice; location-a
+ * now shows [GenericDownloadIcon] instead (see download.kt's class doc).
+ * Left in place rather than deleted in case per-source network-type
+ * detection is ever built for real — the branching logic here would still
+ * apply unchanged if that data existed.
+ *
  * Draws a mono-coloured line icon matched to [networkType]:
  *   WIFI          → Classic fan-arc WiFi glyph (3 arcs + dot), white.
  *   CELLULAR_3G   → Bold "3G" text label drawn on canvas, white.

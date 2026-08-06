@@ -1,6 +1,7 @@
 package com.example.fiddler.subapps.Fidland.service
 
 import android.content.Context
+import android.content.res.Configuration
 import android.graphics.PixelFormat
 import android.os.Build
 import android.view.Gravity
@@ -88,8 +89,7 @@ class OverlayManagerCompose(
         PixelFormat.TRANSLUCENT
     ).apply {
         gravity = Gravity.TOP or Gravity.START
-        // Center the touch box horizontally over the hole-punch
-        x = screenWidthPx() / 2 - IslandConfig.STATE2_WIDTH.dpToPx() / 2
+        x = touchBoxX()
         // Position: below the island's lower edge for the given phase.
         y = islandTopY() + (heightOverride ?: IslandConfig.heightForPhase(phase)).dpToPx() + (4 * context.resources.displayMetrics.density).toInt()
     }
@@ -171,6 +171,34 @@ class OverlayManagerCompose(
     private fun islandViewLeftX(): Int {
         val screenWidth = screenWidthPx()
         return screenWidth / 2 + IslandConfig.HOLE_PUNCH_X_OFFSET.dpToPx() - islandViewWidthPx() / 2
+    }
+
+    /**
+     * X position for the touch box (§B3 landscape fix).
+     *
+     * BUG (pre-fix): this used to compute its own raw
+     * `screenWidthPx() / 2 - width / 2` independently of [islandViewLeftX],
+     * despite a comment claiming it was "anchored same as island view." In
+     * portrait that coincidence held because [IslandConfig.HOLE_PUNCH_X_OFFSET]
+     * is negligible there, so nobody noticed. In landscape the pill sits
+     * left-of-center (a liked, kept-as-is look — see class doc), and the old
+     * formula didn't account for that offset, so the touch box drifted to the
+     * true screen midpoint while the pill stayed left-of-center — swipes could
+     * land under the wrong spot.
+     *
+     * Fix: landscape derives x from the pill's own actual center
+     * ([islandViewLeftX] + half its width) so the two are locked together.
+     * Portrait keeps the original formula, unchanged.
+     */
+    private fun touchBoxX(): Int {
+        val isLandscape = context.resources.configuration.orientation ==
+                Configuration.ORIENTATION_LANDSCAPE
+        return if (isLandscape) {
+            val pillCenterX = islandViewLeftX() + islandViewWidthPx() / 2
+            pillCenterX - IslandConfig.STATE2_WIDTH.dpToPx() / 2
+        } else {
+            screenWidthPx() / 2 - IslandConfig.STATE2_WIDTH.dpToPx() / 2
+        }
     }
 
     /**

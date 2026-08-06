@@ -30,6 +30,7 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.airbnb.lottie.compose.LottieCompositionSpec
+import com.example.fiddler.subapps.Fidland.phs3.BlockAffinity
 import com.example.fiddler.subapps.Fidland.phs3.Phs3Handler
 import com.example.fiddler.subapps.Fidland.phs3.shared.AudioVisualizerEngine
 import com.example.fiddler.subapps.Fidland.phs3.shared.EqualizerContext
@@ -50,14 +51,18 @@ import com.example.fiddler.ui.icons.MonoLottieIcon
  *   • RECORDING → plays at full speed.
  *   • PAUSED    → plays at 0.3× (slow breathing).
  *
- * ── Location b  (immediate right of hole-punch) ────────────────────────────
- *   [EqualizerIndicator] driven by [AudioVisualizerEngine] (session 0 = system
- *   mix, which captures the mic stream while the recorder is active).
- *   Falls back to Simulated(RECORD) while paused.
- *
- * ── Location c  (right of b) ──────────────────────────────────────────────
- *   Elapsed time string parsed from the recorder notification, e.g. "02:14".
- *   Greyed-out while PAUSED.
+ * ── §B7 Blocks (3) — two independently-placed, simultaneously-dynamic
+ *    blocks alongside the location-a Lottie ─────────────────────────────────
+ *   [Indicator] (primary block, [BlockAffinity.DYNAMIC]) — the live
+ *     equalizer, driven by [AudioVisualizerEngine] (session 0 = system mix,
+ *     which captures the mic stream while the recorder is active). Falls
+ *     back to Simulated(RECORD) while paused.
+ *   [SecondaryIndicator] (secondary block, [BlockAffinity.DYNAMIC]) — the
+ *     elapsed time string parsed from the recorder notification, e.g.
+ *     "02:14". Greyed-out while PAUSED.
+ *   Each block is measured and placed independently by
+ *   [com.example.fiddler.subapps.Fidland.phs3.Phs3BlockPlacementEngine] —
+ *   they are not required to land on the same side.
  *
  * ── State 5 (ControlsPanel — long-press the pill to open) ─────────────────
  *   Shows elapsed time + state badge.
@@ -73,6 +78,12 @@ class RecordPhs3Handler(
 ) : Phs3Handler {
 
     override val label: String = "Record"
+
+    // §B7 Blocks (3) — Indicator (equalizer) and SecondaryIndicator (timer)
+    // are both genuinely balancer-placed, not fixed to a side.
+    override val blockAffinity: BlockAffinity = BlockAffinity.DYNAMIC
+    override val hasSecondaryBlock: Boolean = true
+    override val secondaryBlockAffinity: BlockAffinity = BlockAffinity.DYNAMIC
 
     // Engine lives on the handler — survives rotation, no re-init on re-entry.
     private val engine = AudioVisualizerEngine(context, barCount = 5)
@@ -106,12 +117,43 @@ class RecordPhs3Handler(
         )
     }
 
-    // ── Indicator — location b (visualizer) + location c (timer) ─────────────
+    // ── Indicator — primary block, DYNAMIC (live visualizer) ─────────────────
 
     @Composable
     override fun Indicator() {
         val snapshot by source.flow.collectAsState()
+        val isRecording = snapshot.state == RecordingState.RECORDING
 
+        // Start engine when active, stop when paused/idle or composable leaves.
+        // Engine.start() is idempotent so toggling recording state is safe.
+        DisposableEffect(engine) {
+            engine.start()
+            onDispose { engine.stop() }
+        }
+
+        if (isRecording) {
+            EqualizerIndicator(
+                mode      = liveMode,
+                barCount  = 5,
+                maxHeight = 14.dp,
+                color     = Color(0xFFE84A4A),
+            )
+        } else {
+            // Paused — gentle simulated breathing
+            EqualizerIndicator(
+                mode      = EqualizerMode.Simulated(EqualizerContext.RECORD),
+                barCount  = 5,
+                maxHeight = 10.dp,
+                color     = Color(0xFF884444),
+            )
+        }
+    }
+
+    // ── SecondaryIndicator — secondary block, DYNAMIC (elapsed timer) ────────
+
+    @Composable
+    override fun SecondaryIndicator() {
+        val snapshot by source.flow.collectAsState()
         val isRecording = snapshot.state == RecordingState.RECORDING
         val isPaused    = snapshot.state == RecordingState.PAUSED
 
@@ -121,44 +163,13 @@ class RecordPhs3Handler(
             label         = "record_timer_color",
         )
 
-        // Start engine when active, stop when paused/idle or composable leaves.
-        // Engine.start() is idempotent so toggling recording state is safe.
-        DisposableEffect(engine) {
-            engine.start()
-            onDispose { engine.stop() }
-        }
-
-        Row(
-            verticalAlignment    = Alignment.CenterVertically,
-            horizontalArrangement = Arrangement.spacedBy(5.dp),
-        ) {
-            // ── Location b — live visualizer ─────────────────────────────────
-            if (isRecording) {
-                EqualizerIndicator(
-                    mode      = liveMode,
-                    barCount  = 5,
-                    maxHeight = 14.dp,
-                    color     = Color(0xFFE84A4A),
-                )
-            } else {
-                // Paused — gentle simulated breathing
-                EqualizerIndicator(
-                    mode      = EqualizerMode.Simulated(EqualizerContext.RECORD),
-                    barCount  = 5,
-                    maxHeight = 10.dp,
-                    color     = Color(0xFF884444),
-                )
-            }
-
-            // ── Location c — elapsed timer ────────────────────────────────────
-            Text(
-                text       = snapshot.elapsedFormatted,
-                fontSize   = 11.sp,
-                color      = timerColor,
-                fontWeight = if (isRecording) FontWeight.Medium else FontWeight.Normal,
-                maxLines   = 1,
-            )
-        }
+        Text(
+            text       = snapshot.elapsedFormatted,
+            fontSize   = 11.sp,
+            color      = timerColor,
+            fontWeight = if (isRecording) FontWeight.Medium else FontWeight.Normal,
+            maxLines   = 1,
+        )
     }
 
     // ── State 5 — controls panel ──────────────────────────────────────────────
@@ -199,6 +210,30 @@ class RecordPhs3Handler(
                     )
                 }
                 StateBadge(snapshot.state)
+            }
+
+            // ── Equalizer — new to State5, reuses the same engine as Indicator ──
+            Row(
+                modifier              = Modifier
+                    .fillMaxWidth()
+                    .padding(horizontal = 14.dp, vertical = 4.dp),
+                horizontalArrangement = Arrangement.Center,
+            ) {
+                if (snapshot.state == RecordingState.RECORDING) {
+                    EqualizerIndicator(
+                        mode      = liveMode,
+                        barCount  = 9,
+                        maxHeight = 22.dp,
+                        color     = Color(0xFFE84A4A),
+                    )
+                } else {
+                    EqualizerIndicator(
+                        mode      = EqualizerMode.Simulated(EqualizerContext.RECORD),
+                        barCount  = 9,
+                        maxHeight = 16.dp,
+                        color     = Color(0xFF884444),
+                    )
+                }
             }
 
             S5Divider()

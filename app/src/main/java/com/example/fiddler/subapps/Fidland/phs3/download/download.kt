@@ -1,11 +1,16 @@
 package com.example.fiddler.subapps.Fidland.phs3.download
 
 import androidx.compose.foundation.Canvas
+import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.material3.Text
@@ -18,37 +23,60 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.StrokeCap
 import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.graphics.nativeCanvas
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import com.example.fiddler.subapps.Fidland.phs3.BlockAffinity
 import com.example.fiddler.subapps.Fidland.phs3.Phs3Handler
 
 /**
  * Phs3 module — Active download.
  *
- * ── Zone layout (BOTH_EXPANDED) ──────────────────────────────────────────────
+ * ── §B7 Blocks (Phase 4 — from-scratch build) ─────────────────────────────────
+ * Resolves the design doc's three open Blocks questions:
  *
- *   [ LEFT ZONE                    ] [ ● cam ] [ RIGHT ZONE   ]
- *   [ 📶  ↓2.3 MB/s                ] [        ] [ 14m    ◯45% ]
- *     L1    phs2 net speed                       L2 ETA  L3 ring
+ *   • **Location a — generic download glyph, not network-type.** The
+ *     pre-build version's [DownloadNetworkIcon] branched on
+ *     [DownloadNetworkType], but every source has always hardcoded
+ *     [DownloadNetworkType.UNKNOWN] — the icon could only ever show its dim
+ *     fallback dot. Per the doc's own framing ("clean resolution, not a
+ *     fix-first blocker"), that path is retired outright rather than wired
+ *     up to real connectivity data: [LocationAContent] now shows
+ *     [GenericDownloadIcon], a plain download-arrow glyph, unconditionally.
+ *   • **Indicator (primary block, now [BlockAffinity.DYNAMIC])** — the
+ *     progress ring + percentage, unchanged content from the pre-build
+ *     version, just redeclared dynamic instead of implicitly fixed-right.
+ *   • **SecondaryIndicator (secondary block, [BlockAffinity.RIGHT_ANCHOR])**
+ *     — filename text, new this pass. Resolves the doc's open "side not
+ *     specified" flag: adopted as right-fixed via [hasSecondaryBlock], not
+ *     dynamic and not paired inside the % block — flagged as a default
+ *     choice, not a confirmed spec answer, same treatment other Phase 4
+ *     entities gave their own unspecified placement questions.
  *
- * L1 — [LocationAIndicator]: WiFi fan icon or "3G"/"4G"/"5G" label showing
- *       the network type used for the download. Placed LEFT of NetSpeedDisplay
- *       in location a. Called from overlay_fidland_pill.kt's left-zone slot.
+ * ETA and speed are deliberately NOT compact-indicator blocks — the doc's
+ * State5 spec lists them as State5-only detail (see [State5Content]), so
+ * the compact view stays just ring/%/filename; nothing here regresses that.
  *
- * L2 — ETA text: "14m", "42s", "—" if unknown. Location b (immediate right
- *       of hole punch).
- *
- * L3 — [DownloadProgressRing]: thin circular arc with % inside. Location c
- *       (right of ETA). Turns green at 100%.
- *
- * [Indicator] renders ONLY L2 + L3 (the right zone). L1 is deliberately
- * separated into [LocationAIndicator] so the right arm stays slim and the
- * pill is balanced around the camera hole.
- *
- * ── State 5 (long-press) ─────────────────────────────────────────────────────
- * Placeholder for pause/resume/cancel/open-file actions. Not yet implemented.
+ * ── State 5 (long-press) — from-scratch build, not a migration ────────────────
+ * The pre-build version was an explicit unimplemented placeholder. Built now:
+ *   • File title (already available — [DownloadInfo.title]).
+ *   • Which-app — [DownloadInfo.resolveAppLabel], "Unknown app" fallback
+ *     when unresolvable (only [NotificationDownloadSource] has an
+ *     attribution path — see [DownloadInfo.packageName]'s doc).
+ *   • Total size — [formatBytes], "—" when [DownloadInfo.totalBytes] is null
+ *     (indeterminate/Traffic-only entries).
+ *   • ETA — [DownloadInfo.derivedEtaMs], real derivation from bytes
+ *     remaining / current speed; "—" when not derivable (Traffic-only).
+ *   • Current speed — [formatSpeed], already worked pre-build.
+ *   • A larger progress ring, reusing [DownloadProgressRing].
+ * No pause/resume/cancel controls — no source in this build has a control
+ * API into the underlying download (same "observer, not controller" shape
+ * as Timer/Stopwatch and Alarm's Snooze/Cancel caveat), so State5 is
+ * read-only detail rather than a placeholder claiming controls that don't
+ * exist.
  *
  * @param downloadInfo Live snapshot of the active download. DownloadPhs3Trigger
  *                      reconstructs this handler on every aggregator emission.
@@ -59,95 +87,186 @@ class DownloadPhs3Handler(
 
     override val label: String = "Download"
 
-    // ── Location a (LEFT ZONE) — network type icon ────────────────────────────
-    // Contributes a slot to the location-a row when this handler is qualified.
-    // Renders a WiFi fan glyph or a "3G"/"4G"/"5G" text badge so the user
-    // knows which connection is carrying the download.
+    // ── Location a (LEFT ZONE) — generic download glyph (Phase 4) ────────────
 
     override val hasLocationA: Boolean = true
 
     @Composable
     override fun LocationAContent() {
-        DownloadNetworkIcon(
-            networkType = downloadInfo.networkType,
-            size        = 16.dp
-        )
+        GenericDownloadIcon(size = 16.dp)
     }
 
-    // ── Indicator — RIGHT ZONE (L2: ETA, L3: progress ring) ──────────────────
-    // Only these two items go on the right so the pill stays compact.
-    // SpaceBetween / spacedBy keeps them tightly packed.
+    // ── Indicator — primary block, right zone (Phase 4: declared DYNAMIC) ────
+
+    override val blockAffinity: BlockAffinity = BlockAffinity.DYNAMIC
 
     @Composable
     override fun Indicator() {
-        Row(
-            verticalAlignment     = Alignment.CenterVertically,
-            horizontalArrangement = Arrangement.spacedBy(5.dp)
-        ) {
-            // L2 — ETA (+ optional speed on a second line)
-            EtaTextColumn(downloadInfo = downloadInfo)
-
-            // L3 — circular progress ring with % inside
-            DownloadProgressRing(
-                progressFraction = downloadInfo.progressFraction,
-                size             = 22.dp
-            )
-        }
+        DownloadProgressRing(
+            progressFraction = downloadInfo.progressFraction,
+            size             = 22.dp
+        )
     }
 
-    // ── State 5 ControlsPanel ────────────────────────────────────────────────
+    // ── SecondaryIndicator — secondary block, right zone (Phase 4 — new) ─────
+    // Filename text — adopted right-fixed placement, see class doc.
+
+    override val hasSecondaryBlock: Boolean = true
+    override val secondaryBlockAffinity: BlockAffinity = BlockAffinity.RIGHT_ANCHOR
+
+    @Composable
+    override fun SecondaryIndicator() {
+        Text(
+            text       = downloadInfo.title,
+            color      = Color.White,
+            fontSize   = 10.sp,
+            fontWeight = FontWeight.Medium,
+            maxLines   = 1,
+            overflow   = TextOverflow.Ellipsis,
+            modifier   = Modifier
+                .width(72.dp)
+                .padding(start = 6.dp),
+        )
+    }
+
+    // ── State 5 — from-scratch build, see class doc ───────────────────────────
 
     @Composable
     override fun State5Content() {
-        // TODO: pause/resume toggle, cancel, open-file-on-completion actions.
-        Box(
-            modifier         = Modifier.fillMaxSize(),
-            contentAlignment = Alignment.Center
+        val context = LocalContext.current
+        val appLabel = downloadInfo.resolveAppLabel(context) ?: "Unknown app"
+        val totalText = downloadInfo.totalBytes?.let { formatBytes(it) } ?: "—"
+        val etaText = downloadInfo.derivedEtaMs()?.let { formatEta(it) } ?: "—"
+        val speedText = formatSpeed(downloadInfo.speedBps) ?: "—"
+
+        Column(
+            modifier = Modifier
+                .fillMaxSize()
+                .padding(16.dp),
+            verticalArrangement = Arrangement.Center,
         ) {
-            Text(
-                text     = "Download controls — coming soon",
-                color    = Color(0xFF666666),
-                fontSize = 13.sp
-            )
+            // ── Header: big ring + title/app ───────────────────────────────
+            Row(
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.spacedBy(14.dp),
+                modifier = Modifier.fillMaxWidth(),
+            ) {
+                DownloadProgressRing(
+                    progressFraction = downloadInfo.progressFraction,
+                    size             = 48.dp,
+                )
+                Column(modifier = Modifier.weight(1f)) {
+                    Text(
+                        text       = downloadInfo.title,
+                        color      = Color.White,
+                        fontSize   = 14.sp,
+                        fontWeight = FontWeight.Medium,
+                        maxLines   = 1,
+                        overflow   = TextOverflow.Ellipsis,
+                    )
+                    Text(
+                        text     = appLabel,
+                        color    = Color(0xFF888888),
+                        fontSize = 11.sp,
+                        maxLines = 1,
+                        overflow = TextOverflow.Ellipsis,
+                        modifier = Modifier.padding(top = 2.dp),
+                    )
+                }
+            }
+
+            S5Divider()
+
+            // ── Stat rows: size / ETA / speed ──────────────────────────────
+            StatRow(label = "Size", value = totalText)
+            StatRow(label = "Time remaining", value = etaText)
+            StatRow(label = "Speed", value = speedText)
         }
     }
 }
 
-// ── L2: ETA text column ───────────────────────────────────────────────────────
-
-/**
- * Two-line text column for location b:
- *   Line 1 (white, medium)  — ETA,   e.g. "14m" / "42s" / "—"
- *   Line 2 (dim, optional)  — speed, e.g. "2.3 MB/s" (omitted if unknown)
- *
- * A fixed [width] is NOT applied here; the right-zone Box is measured via
- * onSizeChanged in overlay_fidland_pill.kt, so the pill auto-sizes to fit
- * whatever this column reports. If the ETA text length fluctuates (e.g. "2h 5m"
- * vs "42s") you may add a fixed width here to prevent pill jitter — match the
- * widest expected string at 11.sp.
- */
 @Composable
-private fun EtaTextColumn(downloadInfo: DownloadInfo) {
-    val eta   = formatEta(downloadInfo.etaMs)
-    val speed = formatSpeed(downloadInfo.speedBps)
-
-    Column(
-        horizontalAlignment = Alignment.Start,
-        verticalArrangement = Arrangement.Center
+private fun StatRow(label: String, value: String) {
+    Row(
+        verticalAlignment = Alignment.CenterVertically,
+        horizontalArrangement = Arrangement.SpaceBetween,
+        modifier = Modifier
+            .fillMaxWidth()
+            .padding(vertical = 4.dp),
     ) {
         Text(
-            text       = eta,
-            color      = Color.White,
-            fontSize   = 11.sp,
-            fontWeight = FontWeight.Medium,
-            maxLines   = 1
+            text     = label,
+            color    = Color(0xFF888888),
+            fontSize = 12.sp,
         )
-        if (speed != null) {
-            Text(
-                text     = speed,
-                color    = Color(0xFF888888),
-                fontSize = 8.sp,
-                maxLines = 1
+        Text(
+            text       = value,
+            color      = Color.White,
+            fontSize   = 12.sp,
+            fontWeight = FontWeight.Medium,
+        )
+    }
+}
+
+/** Thin horizontal rule — matches the style used in AlarmPhs3Handler/FootballPhs3Handler. */
+@Composable
+private fun S5Divider() {
+    Spacer(
+        modifier = Modifier
+            .fillMaxWidth()
+            .padding(vertical = 8.dp)
+            .height(0.5.dp)
+            .background(Color(0xFF2A2A2A))
+    )
+}
+
+// ── Location-a: generic download glyph (Phase 4 — replaces network-type icon) ─
+
+/**
+ * A plain download-arrow-into-tray glyph — deliberately generic, since no
+ * source has ever populated real [DownloadNetworkType] data (see class
+ * doc's "Location a" note). Drawn on a 20×20 virtual grid, scaled to [size],
+ * matching [DownloadNetworkIcon]'s old canvas-based sizing convention so
+ * this drops into the same location-a slot with no layout change.
+ */
+@Composable
+fun GenericDownloadIcon(size: Dp = 16.dp) {
+    val color = Color.White
+    Box(modifier = Modifier.size(size)) {
+        Canvas(modifier = Modifier.size(size)) {
+            val scale = size.toPx() / 20f
+            fun pt(x: Float, y: Float) = Offset(x * scale, y * scale)
+            val sw = 1.6f * scale
+
+            // Downward arrow shaft + head
+            drawLine(
+                color = color,
+                start = pt(10f, 3f),
+                end   = pt(10f, 12f),
+                strokeWidth = sw,
+                cap = StrokeCap.Round,
+            )
+            drawLine(
+                color = color,
+                start = pt(6f, 8f),
+                end   = pt(10f, 12f),
+                strokeWidth = sw,
+                cap = StrokeCap.Round,
+            )
+            drawLine(
+                color = color,
+                start = pt(14f, 8f),
+                end   = pt(10f, 12f),
+                strokeWidth = sw,
+                cap = StrokeCap.Round,
+            )
+            // Tray
+            drawLine(
+                color = color,
+                start = pt(4f, 16f),
+                end   = pt(16f, 16f),
+                strokeWidth = sw,
+                cap = StrokeCap.Round,
             )
         }
     }
@@ -210,7 +329,7 @@ fun DownloadProgressRing(
             }
         }
 
-        // Percentage label via native canvas — precise control at 22dp
+        // Percentage label via native canvas — precise control at small sizes
         Canvas(modifier = Modifier.size(size)) {
             drawContext.canvas.nativeCanvas.apply {
                 val paint = android.graphics.Paint().apply {

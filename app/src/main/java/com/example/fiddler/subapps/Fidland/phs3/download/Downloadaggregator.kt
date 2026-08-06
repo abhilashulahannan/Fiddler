@@ -83,6 +83,22 @@ class DownloadAggregator(
         }.launchIn(scope)
     }
 
+    /**
+     * §B7 Phase 4 — the primary download's [AggregatedDownload.key], exposed
+     * alongside [primaryDownload] so [DownloadPhs3Trigger] can tell "the same
+     * download is still primary" from "a different download just became
+     * primary without [primaryDownload] ever going through null" — the
+     * identity-tracking gap the design doc flagged (same shape as
+     * Navigation's new-direction diffing off `NavStep.instruction`). Emits
+     * the same value on repeat ticks of the same download, and a genuinely
+     * new value the moment a *different* [AggregatedDownload.key] takes the
+     * top slot, even mid-stream (e.g. a higher-confidence source picks up a
+     * download the Traffic fallback was already showing).
+     */
+    val primaryKey: Flow<String?> = MutableStateFlow<String?>(null).also { out ->
+        _activeDownloads.onEach { list -> out.value = list.firstOrNull()?.key }.launchIn(scope)
+    }
+
     // ── Lifecycle ─────────────────────────────────────────────────────────────
 
     fun start() {

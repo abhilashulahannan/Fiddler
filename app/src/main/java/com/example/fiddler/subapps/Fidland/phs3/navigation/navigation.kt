@@ -29,32 +29,53 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import com.example.fiddler.subapps.Fidland.phs3.BlockAffinity
 import com.example.fiddler.subapps.Fidland.phs3.Phs3Handler
 import com.example.fiddler.ui.icons.MonoLottieIcon
 
 /**
  * Phs3 module — Turn-by-turn Navigation.
  *
- * ── Location a (left of hole-punch) ──────────────────────────────────────────
- *   Direction icon for the next turn — looping Lottie asset (res/raw/nav_*.json,
- *   see [TurnDirection.toRawRes]). Opt-in via [hasLocationA] / [LocationAContent]
- *   — wired automatically by overlay_fidland_pill.
+ * ── §B7 Blocks (Phase 4 — this pass) — full side-swap from before ────────────
+ * All 3 blocks stay fixed-side (none through §B2's DYNAMIC balancer) — ⚠ this
+ * is called out as unconfirmed-intentional in the design doc even after this
+ * pass; implemented literally as specified rather than resolved here.
  *
- * ── Location b (immediate right of hole-punch) ────────────────────────────────
- *   ETA to destination, e.g. "14 min". Updated every notification poll from Maps.
+ *   • **ETA** — moved to location-a (LEFT ZONE) via [hasLocationA] /
+ *     [LocationAContent]. Previously the *direction icon* lived here — full
+ *     swap, not an addition.
+ *   • **Direction icon** — now the primary block, [Indicator], on the RIGHT
+ *     (full side-swap from location-a; reuses the existing [NavDirectionIcon]
+ *     asset set unchanged).
+ *   • **Directions text** — the secondary block, [SecondaryIndicator], via
+ *     [hasSecondaryBlock], RIGHT_ANCHOR. Line 1 = the *full* instruction
+ *     (with street name — data already available via [NavStep.instruction],
+ *     just not previously used at this length); line 2 = distance
+ *     ([NavStep.distanceText]) alone. Decision: kept the existing
+ *     instruction/distance split as-is rather than re-parsing "Turn left at X
+ *     street, coming in 300m" into an alternate reading — the fields already
+ *     carry that split cleanly.
  *
- * ── Location c (right of b) ──────────────────────────────────────────────────
- *   Two-line text: top = short manoeuvre label ("Turn left"), bottom = distance
- *   to that manoeuvre ("in 350 m"). Rendered via [Indicator].
- *
- * ── State 5 (ControlsPanel — long-press to open) ─────────────────────────────
- *   Scrollable card list of all upcoming turns. Each card shows:
- *     • Direction arrow  •  Instruction text  •  Distance
- *     • Traffic colour strip (blue / yellow / red) on the left edge
+ * ── State 5 (long-press) — expanded, not just retained ────────────────────────
+ *   • Hero section (pulled out on its own, "hero, then list" shape — same as
+ *     Weather's State 5): big direction icon + full next instruction + ETA/
+ *     arrival, with a small turn-icon strip (top-right, next 3 steps —
+ *     decision: 3 keeps the strip glanceable; the full capped-at-5 list is
+ *     still below it, so nothing is lost, just not duplicated at full size).
+ *   • Trip stats — ETA/arrival (already existed). **Distance remaining:**
+ *     shipped as an honest partial — sums [NavStep.distanceMeters] across
+ *     currently-known steps only (opportunistic/capped at whatever
+ *     [NavigationRepository] parsed, not true route-remaining) and labelled
+ *     "~" to signal it's approximate. **Total distance travelled:** scoped
+ *     OUT — no derivable source exists at all (same flavor of gap as Alarm's
+ *     per-alarm tag), unlike distance-remaining where a partial figure is at
+ *     least honestly computable.
+ *   • Upcoming-list — unchanged shape, minus the now-promoted-into-the-hero
+ *     item (`steps.drop(1)`).
  *
  * ── Wiring ───────────────────────────────────────────────────────────────────
  * 1. Add a [NavigationPhs3Trigger] in FidlandService.onCreate / onDestroy
- *    (see NavigationPhs3Trigger.kt).
+ *    (see NavigationPhs3Trigger.kt for the Phase 4 Special-Condition wiring).
  * 2. In your NotificationListenerService route Maps notifications:
  *      NavigationRepository.onNotification(sbn)
  *      NavigationRepository.onNavigationEnded()
@@ -64,74 +85,71 @@ class NavigationPhs3Handler : Phs3Handler {
 
     override val label: String = "Navigation"
 
-    // ── Location a — direction arrow ──────────────────────────────────────────
+    // ── Location a — ETA (moved here, Phase 4 — was the direction icon) ─────
 
     override val hasLocationA: Boolean = true
 
     @Composable
     override fun LocationAContent() {
         val snapshot by NavigationRepository.flow.collectAsState()
-        val next = snapshot.nextStep ?: return
+        if (snapshot.etaText.isBlank()) return
 
-        NavDirectionIcon(direction = next.direction, sizeDp = 16.dp)
+        Text(
+            text       = snapshot.etaText,
+            color      = Color(0xFF4FC3F7),   // light blue — matches Maps accent
+            fontSize   = 11.sp,
+            fontWeight = FontWeight.SemiBold,
+            maxLines   = 1,
+        )
     }
 
-    // ── Indicator — location b (ETA) + location c (manoeuvre + distance) ─────
+    // ── Indicator (primary block — direction icon, Phase 4: full side-swap) ──
+
+    override val blockAffinity: BlockAffinity = BlockAffinity.RIGHT_ANCHOR
 
     @Composable
     override fun Indicator() {
         val snapshot by NavigationRepository.flow.collectAsState()
-        val next = snapshot.nextStep
+        val next = snapshot.nextStep ?: return
+        NavDirectionIcon(direction = next.direction, sizeDp = 16.dp)
+    }
 
-        Row(
-            verticalAlignment     = Alignment.CenterVertically,
-            horizontalArrangement = Arrangement.spacedBy(6.dp),
+    // ── SecondaryIndicator (secondary block — directions text) ──────────────
+
+    override val hasSecondaryBlock: Boolean = true
+    override val secondaryBlockAffinity: BlockAffinity = BlockAffinity.RIGHT_ANCHOR
+
+    @Composable
+    override fun SecondaryIndicator() {
+        val snapshot by NavigationRepository.flow.collectAsState()
+        val next = snapshot.nextStep ?: return
+
+        Column(
+            horizontalAlignment = Alignment.Start,
+            verticalArrangement = Arrangement.Center,
+            modifier = Modifier.padding(start = 6.dp),
         ) {
-            // Location b — ETA
-            if (snapshot.etaText.isNotBlank()) {
-                Text(
-                    text       = snapshot.etaText,
-                    color      = Color(0xFF4FC3F7),   // light blue — matches Maps accent
-                    fontSize   = 11.sp,
-                    fontWeight = FontWeight.SemiBold,
-                    maxLines   = 1,
-                )
-            }
-
-            // Divider dot
-            if (snapshot.etaText.isNotBlank() && next != null) {
-                Text(text = "·", color = Color(0xFF555555), fontSize = 11.sp)
-            }
-
-            // Location c — two-line manoeuvre + distance
-            if (next != null) {
-                Column(
-                    horizontalAlignment = Alignment.Start,
-                    verticalArrangement = Arrangement.Center,
-                ) {
-                    Text(
-                        text       = next.direction.toShortLabel(),
-                        color      = Color.White,
-                        fontSize   = 9.sp,
-                        fontWeight = FontWeight.Bold,
-                        lineHeight = 10.sp,
-                        maxLines   = 1,
-                        overflow   = TextOverflow.Ellipsis,
-                    )
-                    Text(
-                        text       = next.distanceText,
-                        color      = Color(0xFFAAAAAA),
-                        fontSize   = 8.sp,
-                        lineHeight = 9.sp,
-                        maxLines   = 1,
-                        overflow   = TextOverflow.Ellipsis,
-                    )
-                }
-            }
+            Text(
+                text       = next.instruction,
+                color      = Color.White,
+                fontSize   = 9.sp,
+                fontWeight = FontWeight.Bold,
+                lineHeight = 10.sp,
+                maxLines   = 1,
+                overflow   = TextOverflow.Ellipsis,
+            )
+            Text(
+                text       = next.distanceText,
+                color      = Color(0xFFAAAAAA),
+                fontSize   = 8.sp,
+                lineHeight = 9.sp,
+                maxLines   = 1,
+                overflow   = TextOverflow.Ellipsis,
+            )
         }
     }
 
-    // ── State 5 — upcoming turns list ─────────────────────────────────────────
+    // ── State 5 — hero + trip stats + turn-icon strip + upcoming turns ──────
 
     @Composable
     override fun State5Content() {
@@ -151,25 +169,67 @@ class NavigationPhs3Handler : Phs3Handler {
             return
         }
 
+        val next = snapshot.nextStep
+        val upcoming = snapshot.steps.drop(1) // hero already shows the promoted item
+
         Column(
             modifier = Modifier
                 .fillMaxSize()
                 .padding(horizontal = 10.dp, vertical = 6.dp),
         ) {
-            // Header row — arrival time
-            if (snapshot.arrivalTime.isNotBlank()) {
-                Row(
-                    modifier              = Modifier
-                        .fillMaxWidth()
-                        .padding(bottom = 6.dp),
-                    horizontalArrangement = Arrangement.SpaceBetween,
-                    verticalAlignment     = Alignment.CenterVertically,
-                ) {
-                    Text(
-                        text       = "Upcoming turns",
-                        color      = Color(0xFF888888),
-                        fontSize   = 9.sp,
-                    )
+            // ── Hero: big direction icon + next instruction, turn strip top-right ──
+            Row(
+                modifier              = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.SpaceBetween,
+                verticalAlignment     = Alignment.Top,
+            ) {
+                if (next != null) {
+                    Row(verticalAlignment = Alignment.CenterVertically) {
+                        NavDirectionIcon(direction = next.direction, sizeDp = 30.dp)
+                        Spacer(modifier = Modifier.width(8.dp))
+                        Column {
+                            Text(
+                                text       = next.instruction,
+                                color      = Color.White,
+                                fontSize   = 13.sp,
+                                fontWeight = FontWeight.SemiBold,
+                                maxLines   = 2,
+                                overflow   = TextOverflow.Ellipsis,
+                                lineHeight = 15.sp,
+                            )
+                            Text(
+                                text     = next.distanceText,
+                                color    = Color(0xFF888888),
+                                fontSize = 10.sp,
+                                maxLines = 1,
+                            )
+                        }
+                    }
+                }
+
+                // Turn-icon strip — next 3 steps (incl. current). See class doc:
+                // kept short since the full capped-at-5 list is in the LazyColumn below.
+                Row(horizontalArrangement = Arrangement.spacedBy(4.dp)) {
+                    snapshot.steps.take(3).forEach { step ->
+                        NavDirectionIcon(direction = step.direction, sizeDp = 14.dp)
+                    }
+                }
+            }
+
+            Spacer(modifier = Modifier.height(6.dp))
+
+            // ── Trip stats: ETA/arrival + honest-partial distance remaining ──
+            Row(
+                modifier              = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.SpaceBetween,
+                verticalAlignment     = Alignment.CenterVertically,
+            ) {
+                Text(
+                    text       = formatDistanceRemaining(snapshot.steps),
+                    color      = Color(0xFF888888),
+                    fontSize   = 9.sp,
+                )
+                if (snapshot.arrivalTime.isNotBlank()) {
                     Text(
                         text       = "Arrive ${snapshot.arrivalTime}",
                         color      = Color(0xFF4FC3F7),
@@ -179,16 +239,52 @@ class NavigationPhs3Handler : Phs3Handler {
                 }
             }
 
-            LazyColumn(
-                verticalArrangement = Arrangement.spacedBy(5.dp),
-                modifier            = Modifier.fillMaxSize(),
-            ) {
-                itemsIndexed(snapshot.steps) { index, step ->
-                    NavStepCard(step = step, isNext = index == 0)
+            Spacer(modifier = Modifier.height(6.dp))
+
+            // ── Upcoming turns — unchanged shape, minus the promoted item ───
+            if (upcoming.isEmpty()) {
+                Text(
+                    text     = "No further turns parsed yet",
+                    color    = Color(0xFF555555),
+                    fontSize = 10.sp,
+                )
+            } else {
+                Text(
+                    text     = "Upcoming turns",
+                    color    = Color(0xFF888888),
+                    fontSize = 9.sp,
+                    modifier = Modifier.padding(bottom = 4.dp),
+                )
+                LazyColumn(
+                    verticalArrangement = Arrangement.spacedBy(5.dp),
+                    modifier            = Modifier.fillMaxSize(),
+                ) {
+                    itemsIndexed(upcoming) { _, step ->
+                        NavStepCard(step = step, isNext = false)
+                    }
                 }
             }
         }
     }
+}
+
+/**
+ * §B7 Phase 4 — honest-partial "distance remaining" trip stat. Sums
+ * [NavStep.distanceMeters] across every *currently-known* step only — this
+ * is opportunistic/capped by whatever [NavigationRepository] managed to
+ * parse (today, up to 5 steps from `EXTRA_BIG_TEXT`), not the true
+ * remaining-route distance, which no data source here can provide. Labelled
+ * with "~" for exactly that reason — see class doc's "Trip stats" note.
+ */
+private fun formatDistanceRemaining(steps: List<NavStep>): String {
+    val totalMeters = steps.sumOf { it.distanceMeters }
+    if (totalMeters <= 0) return ""
+    val text = if (totalMeters >= 1000) {
+        "~%.1f km".format(totalMeters / 1000f)
+    } else {
+        "~${totalMeters} m"
+    }
+    return "$text to go (next ${steps.size} turn${if (steps.size == 1) "" else "s"})"
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -311,7 +407,10 @@ fun TurnDirection.toArrow(): String = when (this) {
     TurnDirection.UNKNOWN       -> "•"
 }
 
-/** Short label shown on the top line of location c. */
+/** Short label — kept for other call sites; no longer used directly by
+ *  [NavigationPhs3Handler.Indicator], which now shows only the icon
+ *  (Phase 4 — the short label's job moved into SecondaryIndicator's full
+ *  instruction text). */
 fun TurnDirection.toShortLabel(): String = when (this) {
     TurnDirection.STRAIGHT      -> "Continue"
     TurnDirection.MILD_LEFT     -> "Slight left"

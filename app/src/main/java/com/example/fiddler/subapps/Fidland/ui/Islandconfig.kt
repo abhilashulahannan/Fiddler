@@ -62,8 +62,8 @@ import androidx.compose.ui.unit.dp
  *           is available. Exited via swipe-down (→ State 4) or swipe-up
  *           (→ States 1-2-3). Touchbox attaches to its lower edge.
  *
- * CONTENT ZONES
- * ──────────────
+ * CONTENT ZONES (current)
+ * ─────────────────────────
  * Inside any pill Row the layout is always:
  *
  *   [ LEFT ZONE ] [ hole spacer (BASE_SIZE) ] [ RIGHT ZONE ]
@@ -73,6 +73,25 @@ import androidx.compose.ui.unit.dp
  * a specific phase's content.
  *
  * STATE2_WIDTH and STATE3_MAX_WIDTH are automatically clamped to STATE4_MAX_WIDTH.
+ *
+ * CONTENT ZONES (proposed, §B2 — not yet wired into overlay_fidland_pill.kt)
+ * ─────────────────────────────────────────────────────────────────────────
+ * fidland-condensed.md §B2 proposes splitting each zone further so smaller
+ * "dynamic" blocks can be balanced to whichever side keeps
+ * max(leftWidth, rightWidth) smaller, instead of every entity being locked
+ * to a hardcoded side:
+ *
+ *   [ LEFT ZONE ] [ dynamic zone (left) ] [ NetSpeed ] || hole spacer || [ dynamic zone (right) ] [ RIGHT ZONE ]
+ *
+ * - LEFT ZONE / RIGHT ZONE — unchanged, fixed, outermost (location-a row /
+ *   primary indicator).
+ * - NetSpeed — unchanged, fixed, uncontested slot immediately left of the
+ *   hole spacer.
+ * - dynamic zone (left/right) — new; see [Phs3BlockBalancer] and
+ *   [Phs3BlockPlacementEngine] in the phs3 package for the placement logic,
+ *   and [DYNAMIC_BLOCK_GAP]/[DYNAMIC_ZONE_ANCHOR_GAP] below for spacing.
+ *   Not yet rendered — this section documents the target shape for when
+ *   overlay_fidland_pill.kt is updated to consume it.
  */
 object IslandConfig {
 
@@ -222,11 +241,13 @@ object IslandConfig {
     // Gap between equalizer and text column.
     val MUSIC_EQ_TEXT_GAP: Dp = 6.dp
 
-    // Derived — total right-zone indicator width for the music module.
+    // Derived — equalizer bar-row width.
+    // §B7: equalizer (Indicator, DYNAMIC) and title/artist (SecondaryIndicator,
+    // RIGHT_ANCHOR) are now two independently-placed §B2 blocks rather than one
+    // fused Row, so there's no longer a single combined "indicator width" —
+    // see MusicPhs3Handler.
     val MUSIC_EQ_WIDTH: Dp get() =
         MUSIC_EQ_BAR_WIDTH * MUSIC_EQ_BAR_COUNT + MUSIC_EQ_BAR_SPACING * (MUSIC_EQ_BAR_COUNT - 1)
-    val MUSIC_INDICATOR_WIDTH: Dp get() =
-        MUSIC_EQ_WIDTH + MUSIC_EQ_TEXT_GAP + MUSIC_TEXT_COLUMN_WIDTH
 
     // Location-a row
 
@@ -246,5 +267,22 @@ object IslandConfig {
         return (LOCATION_A_SLOT_SIZE * clamped) +
                 (LOCATION_A_SLOT_GAP * (clamped - 1))
     }
+
+    // ── Phs3 Block Placement (§B2) ──────────────────────────────────────────
+    //   Spacing for the proposed dynamic zones — see the "CONTENT ZONES
+    //   (proposed, §B2)" doc above and phs3/Phs3Block.kt /
+    //   phs3/Phs3BlockPlacementEngine.kt for the placement logic itself.
+    //   Not yet consumed anywhere — overlay_fidland_pill.kt still renders
+    //   the current two-zone layout. Values are placeholders matching the
+    //   existing LOCATION_A_SLOT_GAP convention; retune once a dynamic zone
+    //   actually renders real content.
+
+    //   Gap between adjacent blocks *within* one dynamic zone.
+    val DYNAMIC_BLOCK_GAP: Dp = 4.dp
+
+    //   Gap between a dynamic zone and its neighboring fixed anchor —
+    //   the location-a row, NetSpeedDisplay, the hole-punch spacer, or the
+    //   right-zone primary indicator, whichever the dynamic zone sits next to.
+    val DYNAMIC_ZONE_ANCHOR_GAP: Dp = 6.dp
 
 }

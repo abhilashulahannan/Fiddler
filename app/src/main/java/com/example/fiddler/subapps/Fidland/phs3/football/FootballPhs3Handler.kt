@@ -43,26 +43,40 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import coil.compose.AsyncImage
 import coil.request.ImageRequest
+import com.example.fiddler.subapps.Fidland.phs3.BlockAffinity
 import com.example.fiddler.subapps.Fidland.phs3.Phs3Handler
 import kotlinx.coroutines.delay
 
 /**
  * Phs3 module — Live Football.
  *
- * Qualifies whenever at least one match from the five tracked competitions
+ * Qualifies whenever at least one match from the tracked competitions
  * is live or kicking off within 30 minutes. Constructed by
  * [FootballPhs3Trigger], which owns the [FootballRepository] and calls
  * service.activatePhs3(FootballPhs3Handler(repo)) when appropriate.
  *
- * ── Location a (left of hole-punch) ──────────────────────────────────────────
- *   Flashes a [FootballEventIcon] for [FLASH_DURATION_MS] (30 s) when a goal,
- *   yellow card, or red card is detected in the most-recently-focused match.
- *   Then goes blank. No icon = no recent event. Opt-in via [hasLocationA] /
- *   [LocationAContent] — wired automatically by overlay_fidland_pill.
+ * ── §B7 Blocks (Phase 4 — this pass) — the migration off location-a ──────────
+ * Resolves the design doc's remaining Football blocker (data-source question
+ * aside — fouls/injuries stay unbuilt, see [FootballPhs3Trigger]'s class doc):
  *
- * ── Location b (immediate right of hole-punch) ────────────────────────────────
- *   [HomeLogoIcon]  homeScore : awayScore  [AwayLogoIcon]
- *   Shows the focused match (first live match, or first in list if none live).
+ *   • **Indicator (primary block, now [BlockAffinity.DYNAMIC])** — home
+ *     crest + score/kickoff-time + away crest, unchanged content, just
+ *     redeclared dynamic instead of implicitly fixed-right. Confirms the
+ *     doc's open question: the away crest travels with it as **one** block,
+ *     not split off — same fused Row as before this pass.
+ *   • **SecondaryIndicator (secondary block, [BlockAffinity.RIGHT_ANCHOR])**
+ *     — the goal/card Lottie + event text, moved off location-a into a
+ *     right-fixed block via [hasSecondaryBlock], resolving the doc's
+ *     "confirm this fully replaces location-a" question: it does —
+ *     [hasLocationA] is now `false`. Event text sits alongside the Lottie
+ *     (e.g. "Goal – Messi"); [FootballRepository.flashEventFlow] now covers
+ *     the *full* Special-Condition moment list (events **and** status
+ *     transitions), not just the 4 card/goal [EventType]s the pre-build
+ *     version knew about. Status transitions (kickoff/half-time/etc.) have
+ *     no player to attribute, so per the doc's own resolution they render
+ *     as a plain status label with **no** Lottie icon — [FlashEvent
+ *     .eventType] is null for them, and [SecondaryIndicator] skips the icon
+ *     slot in that case rather than reusing an event icon that doesn't fit.
  *
  * ── State 5 (ControlsPanel — long-press to open) ─────────────────────────────
  *   HorizontalPager — one page per live/today match.
@@ -74,6 +88,7 @@ import kotlinx.coroutines.delay
  *       most-recent first
  *   Page-indicator dots at the bottom reflect the number of live matches.
  *   Swipe left/right to switch between matches.
+ *   Unchanged by this pass.
  *
  * @param repo  The shared [FootballRepository] providing match and event flows.
  */
@@ -84,45 +99,17 @@ class FootballPhs3Handler(
     override val label: String = "Football"
 
     // ─────────────────────────────────────────────────────────────────────────
-    //  Location a — event flash icon
+    //  Location a — retired (Phase 4). The event flash now lives in
+    //  SecondaryIndicator, right-anchored, instead of the LEFT ZONE row.
     // ─────────────────────────────────────────────────────────────────────────
 
-    override val hasLocationA: Boolean = true
-
-    /**
-     * Shown in the LEFT ZONE (location a).
-     *
-     * Collects [FootballRepository.flashEventFlow] and displays the icon for
-     * exactly [FLASH_DURATION_MS] milliseconds, then hides it.
-     */
-    @Composable
-    override fun LocationAContent() {
-        val flashEvent by repo.flashEventFlow.collectAsState()
-        var visibleEvent by remember { mutableStateOf<FlashEvent?>(null) }
-
-        // When a new flash event arrives, display it and auto-clear after 30 s.
-        LaunchedEffect(flashEvent) {
-            val ev = flashEvent ?: return@LaunchedEffect
-            visibleEvent = ev
-            delay(FLASH_DURATION_MS)
-            // Only clear if still showing this exact event (no newer one arrived).
-            if (visibleEvent == ev) visibleEvent = null
-        }
-
-        AnimatedVisibility(
-            visible = visibleEvent != null,
-            enter = fadeIn(),
-            exit = fadeOut(),
-        ) {
-            visibleEvent?.let { ev ->
-                FootballEventIcon(type = ev.type, size = 18.dp)
-            }
-        }
-    }
+    override val hasLocationA: Boolean = false
 
     // ─────────────────────────────────────────────────────────────────────────
-    //  Indicator — location b (right of hole-punch)
+    //  Indicator — primary block, right zone (Phase 4: declared DYNAMIC)
     // ─────────────────────────────────────────────────────────────────────────
+
+    override val blockAffinity: BlockAffinity = BlockAffinity.DYNAMIC
 
     @Composable
     override fun Indicator() {
@@ -155,8 +142,62 @@ class FootballPhs3Handler(
                 maxLines = 1,
             )
 
-            // Away crest
+            // Away crest — confirmed: travels with the score as one fused
+            // block, not split off (see class doc's §B7 Blocks note).
             TeamCrest(url = focused.awayLogoUrl, teamName = focused.awayTeam, size = 16.dp)
+        }
+    }
+
+    // ─────────────────────────────────────────────────────────────────────────
+    //  SecondaryIndicator — secondary block, right zone (Phase 4 — new)
+    //  Event-flash icon + text, migrated off location-a. See class doc.
+    // ─────────────────────────────────────────────────────────────────────────
+
+    override val hasSecondaryBlock: Boolean = true
+    override val secondaryBlockAffinity: BlockAffinity = BlockAffinity.RIGHT_ANCHOR
+
+    @Composable
+    override fun SecondaryIndicator() {
+        val flashEvent by repo.flashEventFlow.collectAsState()
+        var visibleEvent by remember { mutableStateOf<FlashEvent?>(null) }
+
+        // When a new flash moment arrives, display it and auto-clear after
+        // FLASH_DURATION_MS — same timing/idiom as the retired location-a version.
+        LaunchedEffect(flashEvent) {
+            val ev = flashEvent ?: return@LaunchedEffect
+            visibleEvent = ev
+            delay(FLASH_DURATION_MS)
+            // Only clear if still showing this exact moment (no newer one arrived).
+            if (visibleEvent == ev) visibleEvent = null
+        }
+
+        AnimatedVisibility(
+            visible = visibleEvent != null,
+            enter = fadeIn(),
+            exit = fadeOut(),
+        ) {
+            visibleEvent?.let { ev ->
+                Row(
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.spacedBy(4.dp),
+                    modifier = Modifier.padding(start = 6.dp),
+                ) {
+                    // Status transitions (eventType == null) have no player
+                    // to attribute and no matching icon — text-only, per the
+                    // doc's own resolution (see class doc's §B7 Blocks note).
+                    ev.eventType?.let { type ->
+                        FootballEventIcon(type = type, size = 14.dp)
+                    }
+                    Text(
+                        text = ev.label,
+                        color = Color.White,
+                        fontSize = 9.sp,
+                        fontWeight = FontWeight.Medium,
+                        maxLines = 1,
+                        overflow = TextOverflow.Ellipsis,
+                    )
+                }
+            }
         }
     }
 

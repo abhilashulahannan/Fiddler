@@ -108,6 +108,9 @@ class NotificationDownloadSource : DownloadSource {
                 etaMs            = null,
                 networkType      = DownloadNetworkType.UNKNOWN,
                 speedBps         = speedBps,
+                // §B7 Phase 4 — the only source with an attribution path,
+                // see DownloadInfo.packageName's doc.
+                packageName      = sbn.packageName,
             ),
             confidence = 1.0f,
         )

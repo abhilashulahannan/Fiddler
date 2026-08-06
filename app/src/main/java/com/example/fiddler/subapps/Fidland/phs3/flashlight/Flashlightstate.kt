@@ -14,6 +14,11 @@ package com.example.fiddler.subapps.Fidland.phs3.flashlight
  * still stored and surfaced in the UI for future use.
  *
  * @param strengthLevel  Current brightness step, in [1 .. FLASHLIGHT_STRENGTH_STEPS].
+ *
+ * §B7: this is the single signal driving both qualification and the home
+ * Submissive/30 → indefinite-hold promotion — see [FlashlightPhs3Trigger]'s
+ * class doc. Torch is either on or off; there's no separate "qualified but
+ * quiet at home class" state ever observed, same shape as Camera's.
  */
 data class FlashlightInfo(
     val strengthLevel: Int = FLASHLIGHT_STRENGTH_STEPS   // default = full brightness
